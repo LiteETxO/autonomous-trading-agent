@@ -162,7 +162,12 @@ export async function runAgent(task, { maxIterations = 12 } = {}) {
 
           await notifyTrade({ ...inp, testnet: process.env.BYBIT_TESTNET !== "false" });
           reporter.feed(`Trade: ${inp.side?.toUpperCase()} ${inp.symbol} $${inp.qty}`, "buy");
-          reporter.equity(parseFloat(result.match(/\$(\d+\.?\d*)/)?.[1] || 0));
+          // Re-fetch real balance after trade instead of parsing order result
+          try {
+            const balResult = await executeTool("get_balance", { coin: "USDT" });
+            const match = balResult.match(/Equity:\s*(\d+\.?\d*)/);
+            if (match) reporter.equity(parseFloat(match[1]));
+          } catch {}
 
           // Register with position monitor for stop/TP tracking
           try {
