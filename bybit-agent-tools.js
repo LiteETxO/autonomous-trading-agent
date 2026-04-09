@@ -170,37 +170,50 @@ export async function getBalance({ coin = "USDT" }) {
 const MAX_POSITION_USDT = 100;
 
 export async function placeOrder({ symbol, side, qty, orderType = "Market", price }) {
-  // ── Position size guard ──────────────────────────────────────────────────
-  // Estimate order value and reject if it exceeds the $100 cap.
-  let estimatedValue;
-  if (price) {
-    estimatedValue = qty * price;
-  } else {
-    // Fetch live price to estimate market order value
-    const ticker = await get("/v5/market/tickers", {
-      category: "spot",
-      symbol: symbol.toUpperCase().replace("/", ""),
-    });
-    const lastPrice = parseFloat(ticker.list?.[0]?.lastPrice || "0");
-    estimatedValue = qty * lastPrice;
+  const sym = symbol.toUpperCase().replace("/", "");
+
+  // ── Fetch live price (always needed for market orders) ───────────────────
+  const ticker = await get("/v5/market/tickers", { category: "spot", symbol: sym });
+  const lastPrice = parseFloat(ticker.list?.[0]?.lastPrice || "0");
+
+  // ── Bybit V5 spot quirk ──────────────────────────────────────────────────
+  // Market BUY  → qty must be in QUOTE currency (USDT)
+  // Market SELL → qty must be in BASE currency (ETH/BTC/etc)
+  // Limit orders → qty always in BASE currency
+  // If the agent passes qty in base coin, convert BUY market orders to USDT.
+  let orderQty = qty;
+  let isQuoteQty = false;
+  if (orderType === "Market" && side.toLowerCase() === "buy") {
+    // If qty looks like base coin (< 10 for ETH, < 1 for BTC), convert to USDT
+    const estimatedAsBase = qty * lastPrice;
+    if (estimatedAsBase > 1) {
+      // qty is in base coin → convert to USDT for market buy
+      orderQty = +(qty * lastPrice).toFixed(2);
+      isQuoteQty = true;
+    }
+    // Otherwise assume qty is already in USDT
   }
 
+  // ── Position size guard ──────────────────────────────────────────────────
+  const estimatedValue = isQuoteQty ? orderQty : (price ? qty * price : qty * lastPrice);
   if (estimatedValue > MAX_POSITION_USDT) {
     return [
       `Order REJECTED — position size guard`,
       `  Estimated value: $${estimatedValue.toFixed(2)}`,
       `  Max allowed:     $${MAX_POSITION_USDT}`,
-      `  Tip: reduce qty or split into smaller orders`,
+      `  Tip: reduce qty`,
     ].join("\n");
   }
   // ────────────────────────────────────────────────────────────────────────
 
   const body = {
     category: "spot",
-    symbol: symbol.toUpperCase().replace("/", ""),
-    side: side.charAt(0).toUpperCase() + side.slice(1).toLowerCase(), // "Buy" | "Sell"
+    symbol: sym,
+    side: side.charAt(0).toUpperCase() + side.slice(1).toLowerCase(),
     orderType,
-    qty: qty.toString(),
+    ...(isQuoteQty
+      ? { marketUnit: "quoteCoin", qty: orderQty.toString() }  // BUY market → USDT
+      : { qty: orderQty.toString() }),                          // SELL/Limit → base coin
     ...(orderType === "Limit" && price ? { price: price.toString() } : {}),
     timeInForce: orderType === "Limit" ? "GTC" : "IOC",
   };
@@ -209,12 +222,13 @@ export async function placeOrder({ symbol, side, qty, orderType = "Market", pric
 
   return [
     `Order placed ${TESTNET ? "(TESTNET)" : "(LIVE)"}`,
-    `  orderId:  ${result.orderId}`,
-    `  symbol:   ${body.symbol}`,
-    `  side:     ${body.side}`,
-    `  qty:      ${body.qty}`,
-    `  type:     ${body.orderType}`,
-    ...(price ? [`  price:    $${price}`] : []),
+    `  orderId:   ${result.orderId}`,
+    `  symbol:    ${body.symbol}`,
+    `  side:      ${body.side}`,
+    `  qty:       ${isQuoteQty ? orderQty + " USDT" : orderQty + " " + sym.replace("USDT","")}`,
+    `  ~value:    $${estimatedValue.toFixed(2)}`,
+    `  type:      ${body.orderType}`,
+    ...(price ? [`  price:     $${price}`] : []),
   ].join("\n");
 }
 

@@ -413,7 +413,7 @@ SIGNAL SCORING:
 TRADE PARAMETERS (use these exact values when calling place_order):
 - symbol: use the symbol from your analysis (e.g. "ETHUSDT")
 - side: "buy" for long signal, "sell" for short signal
-- qty: calculate so total value ≈ $50 USDT (e.g. if ETH=$2200, qty=0.022)
+- qty: always use 50 (meaning $50 USDT worth) — the system handles conversion automatically
 - orderType: "Market"
 
 RISK RULES:
