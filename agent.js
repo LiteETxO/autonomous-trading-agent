@@ -122,7 +122,6 @@ export async function runAgent(task, { maxIterations = 12 } = {}) {
       } else {
         const response = await client.messages.create({
           model: MODEL, max_tokens: 4096,
-          thinking: { type: "adaptive" }, metadata: { effort: EFFORT },
           system: STRATEGY_SYSTEM_PROMPT, tools: anthropicTools, messages,
         });
         for (const b of response.content) {
