@@ -15,11 +15,18 @@
 
 import fs      from "fs";
 import path    from "path";
-import { ethers }         from "ethers";
-import { Hyperliquid }    from "@hyperliquid/sdk";
 import { recordTrade }    from "./performance-tracker.js";
 import { notifyTrade, notifyError, notifyStep } from "./notify.js";
 import { reporter } from "./reporter.js";
+import { registerPosition } from "./register-position.js";
+
+// Heavy deps loaded lazily so missing packages don't crash startup
+let ethers, Hyperliquid;
+async function loadHeavyDeps() {
+  if (ethers) return;
+  try { ({ ethers } = await import("ethers")); } catch {}
+  try { ({ Hyperliquid } = await import("@hyperliquid/sdk")); } catch {}
+}
 
 // Load .env
 try {
@@ -49,32 +56,6 @@ function saveRegistry(reg) {
   fs.writeFileSync(REGISTRY_PATH, JSON.stringify(reg, null, 2));
 }
 
-/**
- * Called by agent.js immediately after placing an order.
- * Writes the position to the registry so the monitor can track it.
- */
-export function registerPosition(pos) {
-  const reg = loadRegistry();
-  reg.positions.push({
-    id:            `pos-${Date.now()}`,
-    venue:         pos.venue,           // "bybit" | "hl" | "dydx" | "gmx" | "uniswap"
-    symbol:        pos.symbol,
-    side:          pos.side,            // "long" | "short" | "arb"
-    strategy:      pos.strategy,
-    score:         pos.score,
-    entryPrice:    pos.entryPrice,
-    sizeUsd:       pos.sizeUsd,
-    stopPrice:     pos.stopPrice,
-    tpPrice:       pos.tpPrice,
-    orderId:       pos.orderId || null,
-    openedAt:      new Date().toISOString(),
-    closedAt:      null,
-    status:        "open",
-    venueOrderId:  pos.venueOrderId || null,
-  });
-  saveRegistry(reg);
-  console.log(`[monitor] registered position: ${pos.venue} ${pos.symbol} ${pos.side} $${pos.sizeUsd}`);
-}
 
 // ─── Bybit position reconciler ────────────────────────────────────────────────
 
@@ -131,7 +112,7 @@ async function fetchBybitTicker(symbol) {
 
 let _hl = null;
 function getHL() {
-  if (!_hl && process.env.WALLET_PRIVATE_KEY) {
+  if (!_hl && Hyperliquid && process.env.WALLET_PRIVATE_KEY) {
     _hl = new Hyperliquid({
       privateKey: process.env.WALLET_PRIVATE_KEY,
       testnet:    process.env.HL_TESTNET !== "false",
@@ -141,6 +122,7 @@ function getHL() {
 }
 
 async function fetchHLPositions() {
+  await loadHeavyDeps();
   const hl = getHL();
   if (!hl) return [];
   try {

@@ -15,7 +15,7 @@ import { recordTrade, shouldReEvaluate    } from "./performance-tracker.js";
 import { runAdaptiveCycle                 } from "./adaptive.js";
 import { notifyTaskStart, notifyTrade, notifyPass, notifyError } from "./notify.js";
 import { reporter } from "./reporter.js";
-import { registerPosition } from "./position-monitor.js";
+import { registerPosition } from "./register-position.js";
 
 // Load .env
 try {
@@ -246,7 +246,7 @@ loop().catch(err => {
 /**
  * PATCH: call registerPosition() after every successful order.
  * Import this at the top of agent.js:
- *   import { registerPosition } from "./position-monitor.js";
+ *   import { registerPosition } from "./register-position.js";
  *
  * Then inside the tool-result loop, after notifyTrade(), add:
  *
