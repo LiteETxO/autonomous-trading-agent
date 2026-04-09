@@ -11,6 +11,15 @@
  */
 
 import crypto from "crypto";
+import fs     from "fs";
+
+// Load .env
+try {
+  fs.readFileSync(".env", "utf8").split("\n").forEach(line => {
+    const m = line.match(/^([^#=\s]+)\s*=\s*(.*)$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+  });
+} catch {}
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -138,10 +147,12 @@ export async function getBalance({ coin = "USDT" }) {
   });
   const info = result.list?.[0]?.coin?.find((c) => c.coin === coin);
   if (!info) return `No ${coin} balance found.`;
+  const available = parseFloat(info.availableToWithdraw || info.availableBalance || info.walletBalance || 0);
+  const equity    = parseFloat(info.equity || info.walletBalance || 0);
   return [
     `${coin} balance`,
-    `  Available: ${parseFloat(info.availableToWithdraw).toFixed(4)}`,
-    `  Equity:    ${parseFloat(info.equity).toFixed(4)}`,
+    `  Available: ${available.toFixed(4)}`,
+    `  Equity:    ${equity.toFixed(4)}`,
   ].join("\n");
 }
 

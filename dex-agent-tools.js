@@ -37,10 +37,17 @@ async function loadHL() {
   }
   return HyperliquidSDK;
 }
-import { CompositeClient,
-         Network, LocalWallet,
-         OrderSide, OrderType,
-         OrderTimeInForce }         from "@dydxprotocol/v4-client-js";
+// dYdX imports loaded lazily to avoid crash on Node 22 compatibility issue
+let CompositeClient, Network, LocalWallet, OrderSide, OrderType, OrderTimeInForce;
+async function loadDydx() {
+  if (CompositeClient) return;
+  try {
+    ({ CompositeClient, Network, LocalWallet, OrderSide, OrderType, OrderTimeInForce }
+      = await import("@dydxprotocol/v4-client-js"));
+  } catch (e) {
+    throw new Error(`dYdX unavailable: ${e.message}`);
+  }
+}
 
 // ─── Shared config ────────────────────────────────────────────────────────────
 
@@ -48,8 +55,10 @@ const MAX_ORDER_USD    = 100;          // hard cap shared across all venues
 const DEFAULT_SLIPPAGE = 0.005;        // 0.5% slippage tolerance
 
 const EVM_WALLET = () => {
-  if (!process.env.WALLET_PRIVATE_KEY) throw new Error("WALLET_PRIVATE_KEY not set");
-  return new ethers.Wallet(process.env.WALLET_PRIVATE_KEY);
+  const key = process.env.WALLET_PRIVATE_KEY;
+  if (!key || key.startsWith("0x...") || key.length < 32)
+    throw new Error("WALLET_PRIVATE_KEY not configured — DEX trading unavailable");
+  return new ethers.Wallet(key);
 };
 
 // ─── Safety guard (shared) ────────────────────────────────────────────────────
@@ -286,6 +295,7 @@ async function getDydx() {
 }
 
 export async function dydxPlaceOrder({ market, side, size, price, leverage = 1 }) {
+  await loadDydx();
   const guard = sizeGuard(size * price);
   if (guard.blocked) return guard.message;
 
