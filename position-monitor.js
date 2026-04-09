@@ -163,26 +163,18 @@ async function checkIfClosed(pos) {
     const price = await fetchBybitTicker(pos.symbol);
     if (!price) return null;
 
-    // Check stop / TP breach
+    // Only close based on price hitting stop/TP levels.
+    // "Filled" on the entry order just means we bought — position is now OPEN.
     if (pos.side === "long") {
-      if (pos.stopPrice && price <= pos.stopPrice)
+      if (pos.stopPrice && pos.stopPrice > 0 && price <= pos.stopPrice)
         return { closed: true, exitPrice: pos.stopPrice, exitReason: "stop_loss" };
-      if (pos.tpPrice   && price >= pos.tpPrice)
+      if (pos.tpPrice   && pos.tpPrice   > 0 && price >= pos.tpPrice)
         return { closed: true, exitPrice: pos.tpPrice,   exitReason: "take_profit" };
     } else if (pos.side === "short") {
-      if (pos.stopPrice && price >= pos.stopPrice)
+      if (pos.stopPrice && pos.stopPrice > 0 && price >= pos.stopPrice)
         return { closed: true, exitPrice: pos.stopPrice, exitReason: "stop_loss" };
-      if (pos.tpPrice   && price <= pos.tpPrice)
+      if (pos.tpPrice   && pos.tpPrice   > 0 && price <= pos.tpPrice)
         return { closed: true, exitPrice: pos.tpPrice,   exitReason: "take_profit" };
-    }
-
-    // Check order status if we have an orderId
-    if (pos.venueOrderId) {
-      const order = await fetchBybitOrderStatus(pos.venueOrderId, pos.symbol);
-      if (order && ["Filled","Cancelled","Rejected"].includes(order.orderStatus)) {
-        return { closed: true, exitPrice: parseFloat(order.avgPrice || pos.entryPrice),
-                 exitReason: order.orderStatus === "Filled" ? "filled" : "cancelled" };
-      }
     }
     return null;
   }

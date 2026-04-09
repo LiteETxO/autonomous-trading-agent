@@ -159,10 +159,10 @@ export async function runAgent(task, { maxIterations = 12 } = {}) {
             } catch {}
           }
 
-          // qty=50 means $50 USDT for market buys; for limit orders qty is base coin
-          const sizeUsd = (inp.orderType === "Limit" && entryPrice)
-            ? (inp.qty || 0) * entryPrice
-            : (inp.qty || 50);  // default to $50 if unclear
+          // sizeUsd = base qty × entry price (works for both market and limit)
+          const sizeUsd = entryPrice > 0
+            ? +((inp.qty || 0) * entryPrice).toFixed(2)
+            : (inp.qty || 50);
 
           const stopPct   = params.stopPct / 100;
           const tpPct     = params.tpPct   / 100;
