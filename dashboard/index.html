@@ -127,6 +127,73 @@ td{padding:3px 5px;border-bottom:1px solid #1e2d3d22}
 .ml{font-size:9px;color:var(--mu);margin-top:3px}
 .bt-charts{display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px}
 .chart-panel{background:var(--s2);border:1px solid var(--bd);border-radius:7px;padding:12px}
+
+/* ── MOBILE ─────────────────────────────────────────────────────── */
+@media (max-width:768px){
+  body{font-size:12px}
+
+  /* Nav: stack logo+status on one row, tabs below */
+  nav{flex-wrap:wrap;gap:8px;padding:8px 12px}
+  .logo{font-size:11px}
+  /* Hide venue badges on mobile — too crowded */
+  nav>div>div:last-child{display:none}
+  .tabs{order:3;width:100%;justify-content:stretch}
+  .tab{flex:1;text-align:center;font-size:9px;padding:6px 4px}
+  .nav-right{gap:8px}
+  .clock{display:none}
+  /* Hide save-keys button text on mobile, keep it small */
+  nav button[onclick="saveKeys()"]{font-size:8px;padding:4px 8px}
+
+  /* Views */
+  .view{padding:8px 10px}
+
+  /* Dashboard: single column stack */
+  .dash-grid{
+    display:flex;flex-direction:column;gap:8px;
+  }
+  .col-l{flex-direction:row;flex-wrap:wrap;gap:8px}
+  .col-l>div{flex:1;min-width:140px}
+
+  /* Portfolio stats: 2x2 grid inside panel */
+  .col-l .panel:first-child{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .col-l .panel:first-child .divider{display:none}
+  .col-l .panel:first-child>div{padding:6px 0}
+  .sv{font-size:17px}
+
+  /* Feed height */
+  .feed{height:160px}
+
+  /* Equity chart */
+  #equity-chart{max-height:160px}
+
+  /* Tables: scroll horizontally */
+  .tbl-wrap{max-height:180px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{min-width:480px}
+  th,td{padding:4px 6px;font-size:9px}
+
+  /* Params panel */
+  .col-r{flex-direction:row;flex-wrap:wrap;gap:8px}
+  .col-r>div{flex:1;min-width:140px}
+  #params-display{font-size:8.5px}
+
+  /* API Keys: single column */
+  .keys-grid{grid-template-columns:1fr}
+  .ksec{padding:12px}
+
+  /* Backtest metrics: 2x2 */
+  .bt-metrics{grid-template-columns:1fr 1fr}
+  .bt-charts{grid-template-columns:1fr}
+  .mv{font-size:16px}
+
+  /* Env bar */
+  .env-bar{flex-direction:column;align-items:flex-start;gap:8px}
+}
+
+@media (max-width:400px){
+  .tab{font-size:8px;padding:5px 2px;letter-spacing:0}
+  .col-l{flex-direction:column}
+  table{min-width:400px}
+}
 </style>
 </head>
 <body>
