@@ -167,8 +167,31 @@ export async function runAgent(task, { maxIterations = 12 } = {}) {
   reporter.status("idle", "");
 }
 
-const task = process.argv[2] ?? "Scan all venues. Check funding arb opportunities first, then score directional signals. Use current strategy params. Report decision.";
-runAgent(task).catch(console.error);
+const SCAN_INTERVAL_MS = parseInt(process.env.SCAN_INTERVAL_MINUTES || "30") * 60 * 1000;
+const TASK = "Scan all venues. Check funding arb opportunities first, then score directional signals. Use current strategy params. Report decision.";
+
+async function loop() {
+  let cycle = 0;
+  while (true) {
+    cycle++;
+    console.log(`\n${"=".repeat(60)}`);
+    console.log(`[agent] cycle #${cycle} | ${new Date().toISOString()}`);
+    console.log("=".repeat(60));
+    try {
+      await runAgent(TASK);
+    } catch (err) {
+      console.error(`[agent] cycle #${cycle} error:`, err.message);
+      // notifyError already called inside runAgent — just log and continue
+    }
+    console.log(`[agent] cycle #${cycle} done. Next scan in ${SCAN_INTERVAL_MS / 60000} min.`);
+    await new Promise(r => setTimeout(r, SCAN_INTERVAL_MS));
+  }
+}
+
+loop().catch(err => {
+  console.error("[agent] fatal loop error:", err);
+  process.exit(1);
+});
 
 /**
  * PATCH: call registerPosition() after every successful order.
