@@ -23,10 +23,13 @@ try {
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const TESTNET = process.env.BYBIT_TESTNET !== "false"; // defaults to testnet
+const TESTNET  = process.env.BYBIT_TESTNET !== "false"; // defaults to testnet
 const BASE_URL = TESTNET
   ? "https://api-testnet.bybit.com"
   : "https://api.bybit.com";
+
+// Always use mainnet for public market data — testnet prices are stale/fake
+const MARKET_URL = "https://api.bybit.com";
 
 const API_KEY = process.env.BYBIT_API_KEY;
 const API_SECRET = process.env.BYBIT_API_SECRET;
@@ -72,6 +75,16 @@ async function get(path, params = {}) {
   return data.result;
 }
 
+// Public market data — always mainnet, no auth needed
+async function getMarket(path, params = {}) {
+  const qs  = new URLSearchParams(params).toString();
+  const url = `${MARKET_URL}${path}${qs ? "?" + qs : ""}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.retCode !== 0) throw new Error(`Bybit error: ${data.retMsg}`);
+  return data.result;
+}
+
 async function post(path, body = {}) {
   const bodyStr = JSON.stringify(body);
   const url = `${BASE_URL}${path}`;
@@ -98,7 +111,7 @@ async function post(path, body = {}) {
  * @param {number} period  number of candles for SMA/RSI (default 14)
  */
 export async function analyzeChart({ symbol, interval = "D", period = 14 }) {
-  const result = await get("/v5/market/kline", {
+  const result = await getMarket("/v5/market/kline", {
     category: "spot",
     symbol: symbol.toUpperCase().replace("/", ""),
     interval,
@@ -187,7 +200,7 @@ export async function placeOrder({ symbol, side, qty, orderType = "Market", pric
   const sym = symbol.toUpperCase().replace("/", "");
 
   // ── Fetch live price (always needed for market orders) ───────────────────
-  const ticker = await get("/v5/market/tickers", { category: "spot", symbol: sym });
+  const ticker = await getMarket("/v5/market/tickers", { category: "spot", symbol: sym });
   const lastPrice = parseFloat(ticker.list?.[0]?.lastPrice || "0");
 
   // ── Bybit V5 spot quirk ──────────────────────────────────────────────────
@@ -252,7 +265,7 @@ export async function placeOrder({ symbol, side, qty, orderType = "Market", pric
  * Get current best bid/ask and 24h stats for a symbol.
  */
 export async function getTicker({ symbol }) {
-  const result = await get("/v5/market/tickers", {
+  const result = await getMarket("/v5/market/tickers", {
     category: "spot",
     symbol: symbol.toUpperCase().replace("/", ""),
   });
