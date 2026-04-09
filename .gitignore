@@ -1,0 +1,17 @@
+# Keys — NEVER commit
+.env
+
+# Runtime data
+data/
+results/
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db

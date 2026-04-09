@@ -1,0 +1,23 @@
+{
+  "name": "autonomous-trading-agent",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "agent":    "node agent.js",
+    "monitor":  "node position-monitor.js",
+    "backtest": "node backtest.js",
+    "adaptive": "node adaptive.js",
+    "start":    "concurrently --names AGENT,MONITOR --prefix-colors cyan,yellow \"node agent.js\" \"node position-monitor.js\"",
+    "check":    "node -e \"import('./adaptive.js').then(m=>m.runAdaptiveCycle({forceRun:true}))\""
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk":          "latest",
+    "@dydxprotocol/v4-client-js": "latest",
+    "concurrently":               "latest",
+    "ethers":                     "^6.0.0",
+    "node-fetch":                 "^3.0.0"
+  },
+  "optionalDependencies": {
+    "@nktkas/hyperliquid": "latest"
+  }
+}
