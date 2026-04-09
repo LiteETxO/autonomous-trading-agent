@@ -143,16 +143,30 @@ export async function analyzeChart({ symbol, interval = "D", period = 14 }) {
 export async function getBalance({ coin = "USDT" }) {
   const result = await get("/v5/account/wallet-balance", {
     accountType: "UNIFIED",
-    coin,
   });
-  const info = result.list?.[0]?.coin?.find((c) => c.coin === coin);
-  if (!info) return `No ${coin} balance found.`;
-  const available = parseFloat(info.availableToWithdraw || info.availableBalance || info.walletBalance || 0);
-  const equity    = parseFloat(info.equity || info.walletBalance || 0);
+  const account = result.list?.[0];
+  if (!account) return `No balance found.`;
+
+  // totalEquity = USDT + all held assets valued in USDT (the true portfolio value)
+  const totalEquity = parseFloat(account.totalEquity || account.totalWalletBalance || 0);
+
+  // Also report individual coin balance if requested
+  const info      = account.coin?.find((c) => c.coin === coin);
+  const available = parseFloat(info?.availableToWithdraw || info?.availableBalance || info?.walletBalance || 0);
+  const coinEquity = parseFloat(info?.equity || info?.walletBalance || 0);
+
+  // List all non-zero holdings
+  const holdings = (account.coin || [])
+    .filter(c => parseFloat(c.walletBalance || 0) > 0)
+    .map(c => `    ${c.coin}: ${parseFloat(c.walletBalance).toFixed(6)} (≈$${parseFloat(c.usdValue || 0).toFixed(2)})`)
+    .join("\n");
+
   return [
+    `Portfolio equity (all assets): $${totalEquity.toFixed(2)}`,
+    `  Equity:    ${totalEquity.toFixed(4)}`,
     `${coin} balance`,
     `  Available: ${available.toFixed(4)}`,
-    `  Equity:    ${equity.toFixed(4)}`,
+    ...(holdings ? [`  Holdings:\n${holdings}`] : []),
   ].join("\n");
 }
 
