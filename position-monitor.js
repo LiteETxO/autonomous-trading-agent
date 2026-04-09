@@ -19,6 +19,15 @@ import { ethers }         from "ethers";
 import { Hyperliquid }    from "@hyperliquid/sdk";
 import { recordTrade }    from "./performance-tracker.js";
 import { notifyTrade, notifyError, notifyStep } from "./notify.js";
+import { reporter } from "./reporter.js";
+
+// Load .env
+try {
+  fs.readFileSync(".env", "utf8").split("\n").forEach(line => {
+    const m = line.match(/^([^#=\s]+)\s*=\s*(.*)$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+  });
+} catch {}
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -286,7 +295,7 @@ async function poll() {
       console.log(`[monitor] CLOSED: ${pos.venue} ${pos.symbol} ${pos.side} | exit: $${result.exitPrice} | P&L: $${pnl} | reason: ${result.exitReason}`);
 
       // ── Record to performance tracker ─────────────────────────────────
-      recordTrade({
+      const tradeRecord = {
         symbol:      pos.symbol,
         venue:       pos.venue,
         strategy:    pos.strategy || "unknown",
@@ -299,7 +308,12 @@ async function poll() {
         exitReason:  result.exitReason,
         openedAt:    pos.openedAt,
         closedAt,
-      });
+      };
+      recordTrade(tradeRecord);
+
+      // ── Push closed trade + updated position to dashboard ─────────────
+      reporter.trade(tradeRecord);
+      reporter.position({ ...pos, status: "closed", closedAt, exitPrice: result.exitPrice, pnl });
 
       // ── Notify ────────────────────────────────────────────────────────
       const emoji    = pnl > 0 ? "✅" : "🔴";
@@ -332,6 +346,13 @@ function printSummary() {
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
 printSummary();
+
+// Sync all open positions to dashboard on startup
+(function syncOpenPositions() {
+  const reg = loadRegistry();
+  reg.positions.filter(p => p.status === "open").forEach(p => reporter.position(p));
+})();
+
 poll(); // run immediately on start
 const timer = setInterval(poll, POLL_INTERVAL_MS);
 

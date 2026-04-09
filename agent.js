@@ -15,6 +15,7 @@ import { recordTrade, shouldReEvaluate    } from "./performance-tracker.js";
 import { runAdaptiveCycle                 } from "./adaptive.js";
 import { notifyTaskStart, notifyTrade, notifyPass, notifyError } from "./notify.js";
 import { reporter } from "./reporter.js";
+import { registerPosition } from "./position-monitor.js";
 
 // Load .env
 try {
@@ -50,6 +51,12 @@ async function executeTool_(name, input) {
   const isDex = ["hl_","uniswap_","dydx_","gmx_"].some(p => name.startsWith(p));
   return isDex ? executeDexTool(name, input) : executeTool(name, input);
 }
+
+const inferVenue = n =>
+  n.startsWith("hl_")      ? "hl"      :
+  n.startsWith("dydx_")    ? "dydx"    :
+  n.startsWith("gmx_")     ? "gmx"     :
+  n.startsWith("uniswap_") ? "uniswap" : "bybit";
 
 // ─── Agent loop ───────────────────────────────────────────────────────────────
 
@@ -140,9 +147,52 @@ export async function runAgent(task, { maxIterations = 12 } = {}) {
 
         const isOrder = ["place_order","hl_place_perp","hl_place_spot","dydx_place_order","gmx_place_order","uniswap_swap"].includes(tu.name);
         if (isOrder && !result.includes("REJECTED")) {
-          await notifyTrade({ ...tu.input, testnet: process.env.BYBIT_TESTNET !== "false" });
-          reporter.feed(`Trade: ${tu.input.side?.toUpperCase()} ${tu.input.symbol} $${tu.input.qty}`, "buy");
+          const inp        = tu.input;
+          const venue      = inferVenue(tu.name);
+          const entryPrice = parseFloat(inp.limitPx || inp.price || 0);
+          const sizeUsd    = (inp.qty || 0) * (entryPrice || 1);
+          const stopPct    = params.stopPct / 100;
+          const tpPct      = params.tpPct   / 100;
+          const stopPrice  = inp.side === "buy"
+            ? +(entryPrice * (1 - stopPct)).toFixed(2)
+            : +(entryPrice * (1 + stopPct)).toFixed(2);
+          const tpPrice    = inp.side === "buy"
+            ? +(entryPrice * (1 + tpPct)).toFixed(2)
+            : +(entryPrice * (1 - tpPct)).toFixed(2);
+          const posId      = `pos-${Date.now()}`;
+
+          await notifyTrade({ ...inp, testnet: process.env.BYBIT_TESTNET !== "false" });
+          reporter.feed(`Trade: ${inp.side?.toUpperCase()} ${inp.symbol} $${inp.qty}`, "buy");
           reporter.equity(parseFloat(result.match(/\$(\d+\.?\d*)/)?.[1] || 0));
+
+          // Register with position monitor for stop/TP tracking
+          try {
+            registerPosition({
+              id:           posId,
+              venue,
+              symbol:       inp.symbol || inp.coin,
+              side:         inp.side === "buy" ? "long" : inp.side === "sell" ? "short" : inp.side,
+              entryPrice,
+              sizeUsd,
+              stopPrice,
+              tpPrice,
+              venueOrderId: result.match(/orderId:\s*(\S+)/)?.[1],
+            });
+          } catch {}
+
+          // Push open position to dashboard immediately
+          reporter.position({
+            id:         posId,
+            venue,
+            symbol:     inp.symbol || inp.coin,
+            side:       inp.side === "buy" ? "long" : inp.side === "sell" ? "short" : inp.side,
+            sizeUsd,
+            entryPrice,
+            stopPrice,
+            tpPrice,
+            status:     "open",
+            openedAt:   new Date().toISOString(),
+          });
         }
 
         if (PROVIDER === "moonshot") {
