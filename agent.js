@@ -146,19 +146,33 @@ export async function runAgent(task, { maxIterations = 12 } = {}) {
 
         const isOrder = ["place_order","hl_place_perp","hl_place_spot","dydx_place_order","gmx_place_order","uniswap_swap"].includes(tu.name);
         if (isOrder && !result.includes("REJECTED")) {
-          const inp        = tu.input;
-          const venue      = inferVenue(tu.name);
-          const entryPrice = parseFloat(inp.limitPx || inp.price || 0);
-          const sizeUsd    = (inp.qty || 0) * (entryPrice || 1);
-          const stopPct    = params.stopPct / 100;
-          const tpPct      = params.tpPct   / 100;
-          const stopPrice  = inp.side === "buy"
+          const inp   = tu.input;
+          const venue = inferVenue(tu.name);
+
+          // For market orders, price isn't in input — fetch live ticker price
+          let entryPrice = parseFloat(inp.limitPx || inp.price || 0);
+          if (!entryPrice) {
+            try {
+              const tickResult = await executeTool("get_ticker", { symbol: inp.symbol || inp.coin });
+              const m = tickResult.match(/Last:\s*\$?([\d.]+)/);
+              if (m) entryPrice = parseFloat(m[1]);
+            } catch {}
+          }
+
+          // qty=50 means $50 USDT for market buys; for limit orders qty is base coin
+          const sizeUsd = (inp.orderType === "Limit" && entryPrice)
+            ? (inp.qty || 0) * entryPrice
+            : (inp.qty || 50);  // default to $50 if unclear
+
+          const stopPct   = params.stopPct / 100;
+          const tpPct     = params.tpPct   / 100;
+          const stopPrice = inp.side === "buy"
             ? +(entryPrice * (1 - stopPct)).toFixed(2)
             : +(entryPrice * (1 + stopPct)).toFixed(2);
-          const tpPrice    = inp.side === "buy"
+          const tpPrice   = inp.side === "buy"
             ? +(entryPrice * (1 + tpPct)).toFixed(2)
             : +(entryPrice * (1 - tpPct)).toFixed(2);
-          const posId      = `pos-${Date.now()}`;
+          const posId     = `pos-${Date.now()}`;
 
           await notifyTrade({ ...inp, testnet: process.env.BYBIT_TESTNET !== "false" });
           reporter.feed(`Trade: ${inp.side?.toUpperCase()} ${inp.symbol} $${inp.qty}`, "buy");
