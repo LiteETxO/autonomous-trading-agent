@@ -39,7 +39,7 @@ export function getState()   { return { ...state }; }
 // TRADE_THRESHOLD = 65   (standard trade)
 // STRONG_THRESHOLD = 80  (news momentum trade — requires higher conviction)
 
-const TRADE_THRESHOLD  = 65;
+export const TRADE_THRESHOLD = 45;
 const STRONG_THRESHOLD = 80;
 
 /**
@@ -62,59 +62,65 @@ export function scoreSignals(ctx) {
   const signals = [];
   let score = 0;
 
-  // ── RSI signal (25 pts) ───────────────────────────────────────────────────
-  // Long: prefer RSI 40–60 (momentum) or < 35 (oversold bounce)
-  // Short: prefer RSI > 60 or > 65 (overbought)
+  // ── RSI signal ──────────────────────────────────────────────────────────────
   if (isLong) {
-    if (rsi >= 40 && rsi <= 60)       { score += 20; signals.push(`RSI ${rsi.toFixed(0)} in neutral-bullish zone (+20)`); }
-    else if (rsi < 35)                 { score += 25; signals.push(`RSI ${rsi.toFixed(0)} oversold — bounce setup (+25)`); }
-    else if (rsi > 75)                 { score -= 30; signals.push(`RSI ${rsi.toFixed(0)} overbought — BLOCK long (-30)`); }
-    else                               { score +=  5; signals.push(`RSI ${rsi.toFixed(0)} neutral (+5)`); }
+    if (rsi >= 28 && rsi <= 45)        { score += 25; signals.push(`RSI ${rsi.toFixed(0)} oversold/recovering — ideal long (+25)`); }
+    else if (rsi < 28)                 { score += 20; signals.push(`RSI ${rsi.toFixed(0)} extremely oversold — contrarian long (+20)`); }
+    else if (rsi >= 45 && rsi <= 58)   { score += 15; signals.push(`RSI ${rsi.toFixed(0)} neutral-bullish momentum (+15)`); }
+    else if (rsi > 72)                 { score -= 20; signals.push(`RSI ${rsi.toFixed(0)} overbought — BLOCK long (-20)`); }
+    else                               { score +=  5; signals.push(`RSI ${rsi.toFixed(0)} elevated but not blocked (+5)`); }
   } else {
-    if (rsi > 65 && rsi <= 78)         { score += 20; signals.push(`RSI ${rsi.toFixed(0)} overbought — short setup (+20)`); }
-    else if (rsi > 78)                 { score += 25; signals.push(`RSI ${rsi.toFixed(0)} extreme overbought (+25)`); }
-    else if (rsi < 30)                 { score -= 30; signals.push(`RSI ${rsi.toFixed(0)} oversold — BLOCK short (-30)`); }
-    else                               { score +=  5; signals.push(`RSI ${rsi.toFixed(0)} neutral (+5)`); }
+    if (rsi >= 58 && rsi <= 72)        { score += 25; signals.push(`RSI ${rsi.toFixed(0)} overbought — prime short (+25)`); }
+    else if (rsi > 72)                 { score += 20; signals.push(`RSI ${rsi.toFixed(0)} extreme overbought (+20)`); }
+    else if (rsi >= 45 && rsi < 58)    { score += 15; signals.push(`RSI ${rsi.toFixed(0)} neutral/elevated — short building (+15)`); }
+    else if (rsi < 28)                 { score -= 20; signals.push(`RSI ${rsi.toFixed(0)} extremely oversold — BLOCK short (-20)`); }
+    else                               { score +=  5; signals.push(`RSI ${rsi.toFixed(0)} low but not blocked (+5)`); }
   }
 
-  // ── SMA trend (20 pts) ────────────────────────────────────────────────────
-  if (isLong && priceVsSma > 1)        { score += 20; signals.push(`Price ${priceVsSma.toFixed(1)}% above SMA — uptrend (+20)`); }
-  else if (isLong && priceVsSma < -2)  { score -=  5; signals.push(`Price ${priceVsSma.toFixed(1)}% below SMA — weak (-5)`); }
-  else if (!isLong && priceVsSma < -1) { score += 20; signals.push(`Price ${priceVsSma.toFixed(1)}% below SMA — downtrend (+20)`); }
-  else if (!isLong && priceVsSma > 2)  { score -=  5; signals.push(`Price ${priceVsSma.toFixed(1)}% above SMA — weak short (-5)`); }
-  else                                  { score += 10; signals.push(`Price near SMA — ranging (+10)`); }
-
-  // ── Funding rate (20 pts) ─────────────────────────────────────────────────
-  // Positive funding = longs pay shorts. High positive = crowded long = fade signal.
-  // Negative funding = shorts pay longs = good for longs (market is bearish, mean-revert).
+  // ── SMA trend ────────────────────────────────────────────────────────────
   if (isLong) {
-    if (fundingRate < -0.01)           { score += 20; signals.push(`Funding ${fundingRate.toFixed(4)}% negative — longs get paid (+20)`); }
-    else if (fundingRate > 0.04)       { score -= 20; signals.push(`Funding ${fundingRate.toFixed(4)}% very high — crowded long (-20)`); }
-    else if (fundingRate > 0.02)       { score -=  5; signals.push(`Funding ${fundingRate.toFixed(4)}% elevated (-5)`); }
-    else                               { score += 10; signals.push(`Funding ${fundingRate.toFixed(4)}% neutral (+10)`); }
+    if (priceVsSma > 1)                { score += 20; signals.push(`Price ${priceVsSma.toFixed(1)}% above SMA — uptrend (+20)`); }
+    else if (Math.abs(priceVsSma) <= 1){ score += 10; signals.push(`Price at SMA — key level, bounce setup (+10)`); }
+    else                               { score -=  8; signals.push(`Price ${priceVsSma.toFixed(1)}% below SMA — weak (-8)`); }
   } else {
-    if (fundingRate > 0.04)            { score += 20; signals.push(`Funding ${fundingRate.toFixed(4)}% very high — short gets paid (+20)`); }
-    else if (fundingRate < -0.01)      { score -= 15; signals.push(`Funding ${fundingRate.toFixed(4)}% negative — costly short (-15)`); }
-    else                               { score += 10; signals.push(`Funding ${fundingRate.toFixed(4)}% neutral (+10)`); }
+    if (priceVsSma < -1)               { score += 20; signals.push(`Price ${priceVsSma.toFixed(1)}% below SMA — downtrend (+20)`); }
+    else if (Math.abs(priceVsSma) <= 1){ score += 10; signals.push(`Price at SMA — resistance level, short setup (+10)`); }
+    else                               { score -=  8; signals.push(`Price ${priceVsSma.toFixed(1)}% above SMA — uptrend risk (-8)`); }
   }
 
-  // ── Volume (15 pts) ───────────────────────────────────────────────────────
-  if (volumeSpike)                     { score += 15; signals.push(`Volume spike detected — conviction (+15)`); }
-  else                                  { score +=  5; signals.push(`Volume normal (+5)`); }
+  // ── Funding rate ─────────────────────────────────────────────────────────
+  // fundingRate is raw decimal from Bybit: 0.0003 = 0.03%/8h
+  if (isLong) {
+    if (fundingRate < -0.0003)         { score += 35; signals.push(`Funding ${(fundingRate*100).toFixed(4)}%/8h LONG-STRONG (+35)`); }
+    else if (fundingRate < -0.0001)    { score += 25; signals.push(`Funding ${(fundingRate*100).toFixed(4)}%/8h LONG-ELIGIBLE (+25)`); }
+    else if (fundingRate < 0)          { score += 15; signals.push(`Funding ${(fundingRate*100).toFixed(4)}%/8h weak negative (+15)`); }
+    else if (fundingRate > 0.0001)     { score -= 15; signals.push(`Funding ${(fundingRate*100).toFixed(4)}%/8h longs paying — caution (-15)`); }
+    else                               { score += 5;  signals.push(`Funding ${(fundingRate*100).toFixed(4)}%/8h near zero (+5)`); }
+  } else {
+    if (fundingRate > 0.0003)          { score += 35; signals.push(`Funding ${(fundingRate*100).toFixed(4)}%/8h SHORT-STRONG (+35)`); }
+    else if (fundingRate > 0.0001)     { score += 25; signals.push(`Funding ${(fundingRate*100).toFixed(4)}%/8h SHORT-ELIGIBLE (+25)`); }
+    else if (fundingRate > 0)          { score += 10; signals.push(`Funding ${(fundingRate*100).toFixed(4)}%/8h weak positive (+10)`); }
+    else if (fundingRate < -0.0001)    { score -= 15; signals.push(`Funding ${(fundingRate*100).toFixed(4)}%/8h negative — costly short (-15)`); }
+    else                               { score += 5;  signals.push(`Funding ${(fundingRate*100).toFixed(4)}%/8h near zero (+5)`); }
+  }
 
-  // ── News sentiment (20 pts) ───────────────────────────────────────────────
+  // ── Volume ────────────────────────────────────────────────────────────────
+  if (volumeSpike)                     { score += 15; signals.push(`Volume spike — conviction (+15)`); }
+  else                                  { score +=  8; signals.push(`Volume normal (+8)`); }
+
+  // ── News sentiment ────────────────────────────────────────────────────────
   const sentimentScore = Math.round(newsSentiment * 20);
   if ((isLong && newsSentiment > 0.3) || (!isLong && newsSentiment < -0.3)) {
     score += Math.abs(sentimentScore);
     signals.push(`News sentiment ${newsSentiment > 0 ? "bullish" : "bearish"} (+${Math.abs(sentimentScore)})`);
   } else if ((isLong && newsSentiment < -0.3) || (!isLong && newsSentiment > 0.3)) {
-    score += sentimentScore; // negative
+    score += sentimentScore;
     signals.push(`News sentiment against trade direction (${sentimentScore})`);
   } else {
     signals.push(`News sentiment neutral (0)`);
   }
 
-  // ── Fee drag check ────────────────────────────────────────────────────────
+  // ── Fee drag ──────────────────────────────────────────────────────────────
   if (venueFee > 0.1)                  { score -= 10; signals.push(`High venue fee ${venueFee}% (-10)`); }
 
   // Clamp
@@ -133,7 +139,7 @@ export function scoreSignals(ctx) {
 // Kelly formula: f = (bp - q) / b
 //   b = odds (R/R ratio), p = win probability, q = 1 - p
 
-const MAX_ORDER_USD    = 100;
+const MAX_ORDER_USD    = 1500;
 const WIN_RR           = 2.0;   // target 2:1 reward/risk
 const BASE_STOP_PCT    = 0.03;  // 3% stop loss
 const BASE_TP_PCT      = 0.06;  // 6% take profit
@@ -159,7 +165,7 @@ export function calcPositionSize(score, equity) {
 
   // Size = half-Kelly fraction of equity, capped at MAX_ORDER_USD
   const raw = halfKelly * equity;
-  const sizeUsd = Math.min(MAX_ORDER_USD, Math.max(10, Math.round(raw * 100) / 100));
+  const sizeUsd = Math.min(MAX_ORDER_USD, Math.max(200, Math.round(raw * 100) / 100));
 
   // Tighten stops on weaker signals
   const stopPct = score >= 80 ? 0.025 : BASE_STOP_PCT;
@@ -390,38 +396,249 @@ export function decide(marketData) {
 
 // ─── 6. SYSTEM PROMPT (inject into agent.js) ─────────────────────────────────
 
+// ─── Watchlists ──────────────────────────────────────────────────────────────
+// Tier 1: broad universe — funding pre-screen only (1 batch call)
+export const TIER1_SYMBOLS = [
+  // Large caps
+  'BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT',
+  // Mid caps
+  'ADAUSDT','DOTUSDT','DOGEUSDT','LTCUSDT',
+  'LINKUSDT','UNIUSDT','NEARUSDT','APTUSDT',
+  'ARBUSDT','OPUSDT','INJUSDT','SUIUSDT',
+  'TIAUSDT','FETUSDT','RENDERUSDT','JUPUSDT',
+  // High-vol alts
+  'APEUSDT','SANDUSDT','MANAUSDT','GALAUSDT','AXSUSDT',
+  'FILUSDT','AAVEUSDT','MKRUSDT','SNXUSDT','CRVUSDT',
+];
+
+// Tier 2: deep analysis cap — top N from funding screen
+export const TIER2_LIMIT = 12;
+
 export const STRATEGY_SYSTEM_PROMPT = `\
-You are an autonomous trading agent. You have tools available and you MUST use them to act.
+You are an autonomous perpetual futures trading agent on Bybit (USDT-margined linear perps).
+You can go LONG (Buy) or SHORT (Sell) on any symbol.
+Goal: capture asymmetric funding-rate + momentum setups on both sides of the market.
+All trades use place_perp_order (NOT place_order). Leverage default 2x, max 3x.
 
-CRITICAL RULE: When you decide to trade, you MUST call the place_order tool immediately.
-Do NOT describe trades in text. Do NOT say "I will execute". CALL THE TOOL.
-If score >= 65 → call place_order now, in this response. No exceptions.
+═══ STEP 1 — CHECK POSITIONS ═══
+Call get_open_positions. Note how many slots remain (max 12).
+Evaluate each held position for early exit:
+  LONG position: if 1h RSI > 72 → close early (call close_perp_position)
+  SHORT position: if 1h RSI < 30 → close early (call close_perp_position)
 
-DECISION FRAMEWORK (always follow in order):
-1. Call get_balance — if equity is critically low, stop.
-2. Call get_ticker for ETHUSDT and BTCUSDT — get live prices.
-3. Call analyze_chart for your chosen symbol — check RSI and SMA.
-4. Score the signal 0-100. If score >= 65, call place_order immediately.
-5. After place_order confirms, report the trade details.
+═══ STEP 2 — MARKET CONTEXT (1 call, do first) ═══
+Call get_market_sentiment once. Note:
+  • Fear & Greed value and classification
+  • Trending coins list — any overlap with your watchlist = attention signal
+Apply context modifier to ALL scores this cycle:
+  F&G < 20 (Extreme Fear)  → +15 pts to LONG scores  (strong contrarian signal)
+  F&G 20-30 (Fear)         → +8 pts to LONG scores   (mild contrarian signal)
+  F&G > 75 (Extreme Greed) → +10 pts to SHORT scores (fade the crowd)
+                            → -10 pts to LONG scores  (crowded — avoid chasing)
+  F&G NEVER penalises SHORT scores — funding-rate shorts are structural fee-income trades,
+  not sentiment bets. A crowded long paying 0.10%/8h will continue paying regardless of fear.
+  Coin appears in trending  → +5 pts to that coin's score (either direction)
 
-SIGNAL SCORING:
-- Price above SMA + RSI 40-70 + positive 24h change → score 70-80 (BUY signal)
-- Price below SMA + RSI 30-60 + negative 24h change → score 70-80 (SELL signal)
-- RSI > 75 or RSI < 25 → do not trade (overbought/oversold extreme)
-- Score < 65 → skip, report why
+═══ STEP 3 — TIER 1: FUNDING PRE-SCREEN (all 35 symbols, 1 call each) ═══
+Call get_balance to confirm available USDT.
+For ALL 35 symbols call get_ticker — collect fundingRate (raw decimal) and 24h change.
 
-TRADE PARAMETERS (use these exact values when calling place_order):
-- symbol: use the symbol from your analysis (e.g. "ETHUSDT")
-- side: "buy" for long signal, "sell" for short signal
-- qty: always use 50 (meaning $50 USDT worth) — the system handles conversion automatically
-- orderType: "Market"
+Full universe (35 symbols):
+  BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT,
+  AVAXUSDT, ADAUSDT, DOTUSDT, DOGEUSDT, LTCUSDT,
+  LINKUSDT, UNIUSDT, ATOMUSDT, NEARUSDT, APTUSDT,
+  ARBUSDT, OPUSDT, INJUSDT, SUIUSDT, SEIUSDT,
+  TIAUSDT, FETUSDT, RENDERUSDT, WLDUSDT, JUPUSDT,
+  APEUSDT, SANDUSDT, MANAUSDT, GALAUSDT, AXSUSDT,
+  FILUSDT, AAVEUSDT, MKRUSDT, SNXUSDT, CRVUSDT
+
+After collecting ALL 35 tickers, call tier1_screen with the full list:
+  tier1_screen({ tickers: [ {symbol: "BTCUSDT", fundingRate: <raw decimal>}, ... ] })
+
+The tool will return your exact Tier 2 candidates with directions pre-assigned.
+DO NOT do your own funding classification — always use tier1_screen output.
+If tier1_screen returns fewer than 3 candidates total, output PASS. Otherwise proceed.
+
+═══ STEP 4 — TIER 2: DEEP ANALYSIS (top 12 from Tier 1 only) ═══
+For each Tier 2 symbol run in sequence:
+  1. analyze_chart(interval: "D", period: 14)   — daily trend + volume
+  2. analyze_chart(interval: "60", period: 14)  — 1h momentum
+  3. get_derivatives_data(symbol)               — OI + long/short ratio
+
+═══ STEP 5 — SCORE TIER 2 SYMBOLS (0–100 per direction) ═══
+
+Score LONG candidates using this table:
+  Funding bucket:
+    +35  Funding < -0.03%/8h  (LONG-STRONG — shorts paying you to hold)
+    +25  Funding -0.01% to -0.03%  (LONG-ELIGIBLE — mild long subsidy)
+    +15  Funding -0.01% to 0  (weak negative — slight long lean)
+    -15  Funding > +0.01%  (you pay funding — caution)
+  1h RSI:
+    +25  1h RSI 28–45  (oversold/recovering — ideal long entry zone)
+    +20  1h RSI < 28   (extremely oversold — high-conviction contrarian bounce)
+    +15  1h RSI 45–58  (neutral with upward bias — momentum building)
+    -20  1h RSI > 72   (overbought — BLOCK long)
+     +5  Otherwise (RSI 58–72 — elevated but tradeable)
+  Daily SMA:
+    +20  Price above daily SMA  (uptrend confirmed)
+    +10  Price within 1% of SMA  (at key level — bounce setup)
+    -8   Price > 2% below SMA  (downtrend — penalise long)
+  24h momentum:
+    +15  24h > +3%  (strong up momentum — trend continuation)
+    +8   24h -2% to +3%  (flat or recovering — viable long)
+    -10  24h < -5%  (sharp dump — falling knife risk)
+  Volume:
+    +15  Volume SPIKE ≥1.5x avg  (conviction)
+    +8   Volume 1.0-1.5x avg  (above normal — interest building)
+    +3   Volume normal
+    -10  Volume LOW <0.6x avg  (no conviction — skip)
+  Derivatives (OI + L/S ratio):
+    +15  sellRatio > 0.60  (heavily short — squeeze setup)
+    +8   sellRatio 0.55-0.60  (shorts leaning)
+    -8   buyRatio > 0.60  (already crowded long — fade warning)
+  Market context:
+    +15  F&G < 20  (Extreme Fear — strong contrarian long signal)
+    +8   F&G 20-30  (Fear — mild contrarian)
+    -10  F&G > 75  (Extreme Greed — avoid adding longs)
+    +5   Coin trending on CoinGecko
+
+Score SHORT candidates using this table:
+  Funding bucket:
+    +35  Funding > +0.03%/8h  (SHORT-STRONG — longs pay you to hold short)
+    +25  Funding +0.01% to +0.03%  (SHORT-ELIGIBLE — mild short subsidy)
+    +10  Funding 0 to +0.01%  (weak positive — slight short lean)
+    -15  Funding < -0.01%  (you pay funding to short — costly, avoid)
+  1h RSI:
+    +25  1h RSI 58–72  (overbought — prime short entry zone)
+    +20  1h RSI > 72   (extreme overbought — high-conviction short)
+    +15  1h RSI 45–58  (neutral/elevated — short setup building, enter early)
+    -20  1h RSI < 28   (extremely oversold — BLOCK short)
+     +5  Otherwise (RSI 28–45 — low but not blocked)
+  Daily SMA:
+    +20  Price below daily SMA  (downtrend confirmed)
+    +10  Price within 1% of SMA  (at resistance — rejection short setup)
+    -8   Price > 2% above SMA  (strong uptrend — risky short)
+  24h momentum:
+    +15  24h < -3%  (strong down momentum — short confirmation)
+    +8   24h -3% to +1%  (flat or mild down — viable short)
+    -10  24h > +5%  (sharp rally — dangerous short entry, wait for pullback)
+  Volume:
+    +15  Volume SPIKE ≥1.5x avg  (conviction on the downside move)
+    +8   Volume 1.0-1.5x avg  (above normal)
+    +3   Volume normal
+    -10  Volume LOW <0.6x avg  (no conviction — skip)
+  Derivatives (OI + L/S ratio):
+    +15  buyRatio > 0.60  (crowded longs — liquidation cascade risk)
+    +8   buyRatio 0.55-0.60  (longs leaning heavy)
+    -8   sellRatio > 0.60  (shorts already crowded — do not pile on)
+  Market context:
+    +10  F&G > 75  (Extreme Greed — amplified short edge, crowded longs everywhere)
+    +5   F&G 50-75  (elevated greed — longs getting complacent)
+    +0   F&G < 25  (Extreme Fear — funding shorts still valid; structural fee income has no fear)
+    +5   Coin trending on CoinGecko  (attention = volatility = short opportunity)
+  CRITICAL: Never penalise shorts because of low F&G. Funding payments are contractual.
+            A symbol paying +0.10%/8h will keep paying until longs close — regardless of sentiment.
+
+HARD BLOCKS (apply regardless of score):
+  LONG:  daily RSI > 75 | Volume LOW | funding > +0.05%  (longs severely crowded)
+  SHORT: daily RSI < 25 | Volume LOW | funding < -0.05%  (shorts severely crowded)
+  BOTH:  Do NOT open both a LONG and SHORT on the same symbol simultaneously.
+
+Trade if: score >= 45 AND no hard block. Max 12 open positions simultaneously.
+
+═══ STEP 6 — MANDATORY ORDER EXECUTION ═══
+⚠ THIS IS AN EXECUTION STEP — YOU MUST CALL place_perp_order FOR EVERY QUALIFYING SYMBOL.
+Do NOT describe the trade in text and skip the tool call. Writing "ENTRY: BTCUSDT..." without
+calling place_perp_order is a failure. The trade only exists when the tool is called.
+
+For every symbol with score >= 45 AND no hard block AND open positions < 12:
+  CALL place_perp_order immediately. Do not delay. Do not skip.
+
+  LONG:  place_perp_order(symbol=SYM, side="Buy",  qty=sizeUsd/currentPrice, leverage=2)
+  SHORT: place_perp_order(symbol=SYM, side="Sell", qty=sizeUsd/currentPrice, leverage=2)
+
+  Size: sizeUsd = 10% of available USDT, min $150, max $1500.
+  qty MUST be base coin: qty = sizeUsd / currentPrice  (e.g. $1500 / $85000 = 0.0176 BTC)
+
+  Execution order: highest score first. Place ALL qualifying symbols, not just one.
+  After each successful tool call, note the orderId for the report.
+  If a tool returns an error, log it and continue to the next symbol — do not stop.
+
+After ALL place_perp_order calls are done, then write the report:
+  ENTRY: <SYMBOL> <LONG|SHORT> orderId=<id> score=<N>/100 entry=$<price> stop=$<stop> tp=$<tp>
+
+═══ EXIT RULES ═══
+Monitor handles stop/TP automatically. Your only triggers:
+  LONG:  1h RSI > 72 on held long  → call close_perp_position (take profit early)
+  SHORT: 1h RSI < 30 on held short → call close_perp_position (cover early)
+
+═══ RISK RULES ═══
+- Max 12 positions, different symbols
+- Stop 3% | TP 6% (2:1 R/R)
+- USDT < $20: no new trades
+- Prefer balanced book: avoid opening 6+ positions in same direction
+
+═══ OUTPUT FORMAT ═══
+CONTEXT: F&G=<N>/100 (<classification>) | Trending: <coins>
+POSITIONS: <N/9 | symbols and direction>
+TIER 1 SCREEN: <symbol funding=X → LONG-STRONG|LONG-ELIGIBLE|NEUTRAL|SHORT-ELIGIBLE|SHORT-STRONG> for all 35
+TIER 2 SELECTED: <6 SHORT candidates (highest +funding) + 6 LONG candidates (most -funding) with direction>
+SCORES: <symbol direction score/100 — funding | 1hRSI | dailySMA | vol | derivatives | context>
+ACTION: <TRADE sym LONG|SHORT score=N bucket=X | PASS — reason>`;
+
+// Export tunable constants so agent.js can import them
+export const MAX_POSITIONS   = 12;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POLYMARKET EXTENSION (appended to STRATEGY_SYSTEM_PROMPT at runtime)
+// ─────────────────────────────────────────────────────────────────────────────
+export const POLYMARKET_STRATEGY_ADDENDUM = `
+
+═══ POLYMARKET PREDICTION MARKETS (Testnet) ═══
+
+You also have access to Polymarket prediction markets on Amoy testnet.
+Run ONE Polymarket scan per cycle AFTER completing your Bybit perp analysis.
+Max 3 open Polymarket positions at a time. Size: $15–$30 per bet.
+
+WORKFLOW:
+1. After perp analysis, identify your strongest directional conviction (e.g. BTC bullish, macro risk-off).
+2. Call polymarket_search_markets with a matching query (e.g. bitcoin 100k, ethereum etf, fed rate).
+3. Find markets where YOUR assessment differs from implied probability by ≥ 15 percentage points.
+4. Call polymarket_get_price to confirm current bid/ask before ordering.
+5. Place order with polymarket_place_order using the yes_token or no_token from the search result.
+
+SIGNAL ALIGNMENT TABLE:
+  Perp signal                  → Polymarket play
+  BTC score ≥ 70 (LONG-STRONG) → BUY YES on BTC above $X by date markets
+  BTC score ≤ 30 (SHORT-STRONG) → BUY NO on BTC above $X or BUY YES on BTC below $X
+  ETH bullish                  → BUY YES on ETH price / ETH ETF markets
+  F&G extreme fear (<20)       → BUY YES on crypto recovery / BTC rebound markets
+  F&G extreme greed (>80)      → BUY NO on further rally markets (fade the crowd)
+  Macro risk-off (VIX rising)  → BUY YES on recession / rate cut markets
+
+PRICING EDGE:
+  YES price = market's implied probability (0.00–1.00 = 0%–100%)
+  If you assess 70% probability but market shows 50% → 20pt edge → TRADE
+  Minimum edge to trade: 15 percentage points
+  Do NOT trade when spread > 8% (illiquid market)
+
+ORDER GUIDANCE:
+  - Use limit orders (price slightly above best ask for BUY, below best bid for SELL)
+  - Do not use market orders — place limit within 2% of current price
+  - Token IDs are large integers from yes_token / no_token fields in search results
+  - BUY yes_token = betting YES will resolve true
+  - BUY no_token  = betting YES will resolve false (equivalent to shorting YES)
 
 RISK RULES:
-- Stop loss: 3% below entry for longs, 3% above for shorts
-- Take profit: 6% above entry for longs, 6% below for shorts
-- Max one open position at a time
+  - Max 3 simultaneous Polymarket positions
+  - Max $30 per position (testnet — keep it small)
+  - Skip markets resolving in < 7 days (too much short-term noise)
+  - Skip markets with 24h volume < $500 (illiquid)
+  - Do NOT double-dip: if you already have a perp LONG on BTC, one Polymarket YES on BTC is fine,
+    but do not open a 3rd correlated position
 
-OUTPUT FORMAT:
-  SIGNAL SCAN: <live data from tools>
-  SCORE: <0-100> | RECOMMENDATION: <TRADE|SKIP>
-  ACTION: <called place_order with X / skipping because Y>`;
+OUTPUT (add to your cycle report):
+  POLYMARKET: <query used> | <N markets scanned>
+  POLY EDGE: <question> — market: X% | your estimate: Y% | edge: Z pts → <TRADE/SKIP>
+  POLY ACTION: <BUY YES/NO on X at $price, $size | PASS>`;
+

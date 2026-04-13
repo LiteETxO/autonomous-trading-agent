@@ -16,6 +16,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "latest",
     "@dydxprotocol/v4-client-js": "^3.6.0",
+    "@polymarket/clob-client": "^5.8.1",
     "concurrently": "latest",
     "ethers": "^6.0.0",
     "express": "latest",

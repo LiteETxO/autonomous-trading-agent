@@ -35,6 +35,7 @@ const DEFAULT_STATE = {
   equity:      [],           // equity curve [{ts, value}]
   metrics:     { totalPnl: 0, winRate: 0, openPositions: 0, todayPnl: 0, equity: 0 },
   params:      {},
+  holdings:    [],   // [{ coin, qty, usdValue }]
   lastUpdated: null,
 };
 
@@ -148,6 +149,14 @@ app.post("/agent/equity", (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /agent/holdings  { holdings: [{coin, qty, usdValue}] }
+app.post("/agent/holdings", (req, res) => {
+  state.holdings = req.body.holdings || [];
+  saveState(state);
+  broadcast("holdings", state.holdings);
+  res.json({ ok: true });
+});
+
 // POST /agent/params  { ...params }
 app.post("/agent/params", (req, res) => {
   state.params = { ...req.body, updatedAt: new Date().toISOString() };
@@ -165,6 +174,19 @@ app.get("/state/positions",(_, res) => res.json(state.positions));
 app.get("/state/equity",   (_, res) => res.json(state.equity));
 app.get("/state/metrics",  (_, res) => res.json(state.metrics));
 
+// Live price proxy — avoids CORS issues from the browser
+app.get("/price/:symbol", async (req, res) => {
+  try {
+    const sym = req.params.symbol.toUpperCase();
+    const r   = await fetch(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${sym}`);
+    const d   = await r.json();
+    const item = d.result?.list?.[0];
+    const price    = parseFloat(item?.lastPrice || 0);
+    const change24h = parseFloat(item?.price24hPcnt || 0) * 100;
+    res.json({ symbol: sym, price, change24h });
+  } catch { res.json({ price: 0, change24h: 0 }); }
+});
+
 // Serve backtest results files
 app.get("/results-list", (_, res) => {
   try {
@@ -177,6 +199,109 @@ app.get("/results/:file", (req, res) => {
   const full = path.join("./results", file);
   if (!fs.existsSync(full)) return res.status(404).json({ error: "not found" });
   res.sendFile(path.resolve(full));
+});
+
+// ─── Sentiment proxy (Fear & Greed + CoinGecko trending, 10-min cache) ───────
+
+const SENTIMENT_CACHE = { data: null, ts: 0 };
+const SENTIMENT_TTL   = 10 * 60 * 1000;
+
+app.get("/sentiment", async (_, res) => {
+  try {
+    if (SENTIMENT_CACHE.data && Date.now() - SENTIMENT_CACHE.ts < SENTIMENT_TTL) {
+      return res.json(SENTIMENT_CACHE.data);
+    }
+    const [fgRes, trendRes] = await Promise.all([
+      fetch("https://api.alternative.me/fng/?limit=1"),
+      fetch("https://api.coingecko.com/api/v3/search/trending"),
+    ]);
+    const fg    = await fgRes.json();
+    const trend = await trendRes.json();
+    const fgItem = fg?.data?.[0];
+    const trending = (trend?.coins || []).slice(0, 8).map(c => c.item?.symbol || c.item?.name);
+    const data = {
+      fg: {
+        value:          parseInt(fgItem?.value || 50),
+        classification: fgItem?.value_classification || "Neutral",
+      },
+      trending,
+      ts: new Date().toISOString(),
+    };
+    SENTIMENT_CACHE.data = data;
+    SENTIMENT_CACHE.ts   = Date.now();
+    res.json(data);
+  } catch { res.json(SENTIMENT_CACHE.data || { fg: { value: 50, classification: "Neutral" }, trending: [], ts: null }); }
+});
+
+// ─── Market scanner proxy (Bybit linear tickers, 30s cache) ─────────────────
+
+const SCANNER_SYMBOLS = new Set([
+  'BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT',
+  'AVAXUSDT','ADAUSDT','DOTUSDT','DOGEUSDT','LTCUSDT',
+  'LINKUSDT','UNIUSDT','ATOMUSDT','NEARUSDT','APTUSDT',
+  'ARBUSDT','OPUSDT','INJUSDT','SUIUSDT','SEIUSDT',
+  'TIAUSDT','FETUSDT','RENDERUSDT','WLDUSDT','JUPUSDT',
+  'APEUSDT','SANDUSDT','MANAUSDT','GALAUSDT','AXSUSDT',
+  'FILUSDT','AAVEUSDT','MKRUSDT','SNXUSDT','CRVUSDT',
+]);
+const SCANNER_CACHE = { data: [], ts: 0 };
+const SCANNER_TTL   = 30 * 1000;
+
+app.get("/scanner", async (_, res) => {
+  try {
+    if (Date.now() - SCANNER_CACHE.ts < SCANNER_TTL) return res.json(SCANNER_CACHE.data);
+    const r = await fetch("https://api.bybit.com/v5/market/tickers?category=linear");
+    const d = await r.json();
+    const items = (d?.result?.list || [])
+      .filter(x => SCANNER_SYMBOLS.has(x.symbol))
+      .map(x => ({
+        symbol:    x.symbol,
+        price:     parseFloat(x.lastPrice   || 0),
+        change24h: parseFloat(x.price24hPcnt|| 0) * 100,
+        funding:   parseFloat(x.fundingRate || 0),
+      }));
+    SCANNER_CACHE.data = items;
+    SCANNER_CACHE.ts   = Date.now();
+    res.json(items);
+  } catch { res.json(SCANNER_CACHE.data); }
+});
+
+// ─── News proxy (CoinGecko news, 5-min cache) ────────────────────────────────
+
+const NEWS_CACHE = { data: [], ts: 0 };
+const NEWS_TTL   = 5 * 60 * 1000;
+
+app.get("/news", async (_, res) => {
+  try {
+    if (Date.now() - NEWS_CACHE.ts < NEWS_TTL) return res.json(NEWS_CACHE.data);
+
+    // Fetch two pages of CoinGecko news (no API key needed)
+    const [p1, p2] = await Promise.allSettled([
+      fetch("https://api.coingecko.com/api/v3/news?page=1").then(r => r.json()),
+      fetch("https://api.coingecko.com/api/v3/news?page=2").then(r => r.json()),
+    ]);
+
+    const items = [
+      ...(p1.status === "fulfilled" ? p1.value?.data || [] : []),
+      ...(p2.status === "fulfilled" ? p2.value?.data || [] : []),
+    ].map(n => ({
+      title:     n.title,
+      url:       n.url,
+      source:    n.news_site || n.author || "CoinGecko",
+      createdAt: new Date(n.created_at * 1000).toISOString(),
+      thumb:     n.thumb_2x || null,
+    })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 40);
+
+    NEWS_CACHE.data = items;
+    NEWS_CACHE.ts   = Date.now();
+    res.json(items);
+  } catch { res.json(NEWS_CACHE.data); }
+});
+
+// ─── Hub route ───────────────────────────────────────────────────────────────
+
+app.get("/hub", (_, res) => {
+  res.sendFile(path.join(__dirname, "dashboard", "agent-hub.html"));
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────

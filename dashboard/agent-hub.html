@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MISSION CTRL — Agent Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04060f;--s1:#07091a;--bd:#152030;
+  --tc:#00e5b8;--sc:#ffaa00;--mc:#ff4d9e;--bc:#7c6ff7;
+  --tx:#d8e4f0;--mu:#2d4558;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;}
+body{background:var(--bg);font-family:'DM Sans',sans-serif;color:var(--tx);}
+
+/* ── Stars ── */
+#stars-layer{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.star{position:absolute;border-radius:50%;animation:twinkle var(--dur) ease-in-out infinite alternate}
+@keyframes twinkle{0%{opacity:0.15;transform:scale(0.8)}100%{opacity:1;transform:scale(1.2)}}
+
+/* ── Scanline ── */
+.scanline{position:fixed;left:0;right:0;height:1px;background:rgba(0,229,184,0.05);z-index:1;pointer-events:none;animation:scanDrift 7s linear infinite}
+@keyframes scanDrift{0%{top:-2px}100%{top:100vh}}
+
+/* ── Pulse dot ── */
+.dot{display:inline-block;border-radius:50%;vertical-align:middle}
+.dot-pulse{animation:pulseDot 1.4s ease-in-out infinite}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.3;transform:scale(0.6)}}
+
+/* ── Top bar ── */
+#topbar{
+  position:sticky;top:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;height:46px;
+  background:rgba(6,9,18,0.88);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--bd);
+}
+.topbar-logo{display:flex;align-items:center;gap:8px}
+.logo-text{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:4px;color:var(--tc)}
+.logo-sub{font-size:8px;letter-spacing:2px;color:var(--mu);text-transform:uppercase;margin-left:4px}
+.topbar-stats{display:flex;align-items:center;gap:0}
+.tstat{padding:0 16px;text-align:center;border-left:1px solid var(--bd)}
+.tstat:last-child{border-right:1px solid var(--bd)}
+.tstat-val{font-family:'Space Mono',monospace;font-size:13px;font-weight:700}
+.tstat-lbl{font-size:7px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mu);margin-top:1px}
+.topbar-clock{font-family:'Space Mono',monospace;font-size:11px;color:var(--tc);opacity:0.7}
+
+/* ── Mainnet bar ── */
+#mainnet-bar{
+  position:relative;z-index:99;
+  display:flex;align-items:center;gap:10px;
+  padding:5px 16px;
+  border-bottom:1px solid var(--bd);
+  background:rgba(4,6,15,0.6);
+}
+.mainnet-label{font-family:'Space Mono',monospace;font-size:7px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);white-space:nowrap}
+.mainnet-track{flex:1;height:2px;background:#0d1e2c;border-radius:2px;overflow:hidden;position:relative}
+.mainnet-fill{height:100%;border-radius:2px;background:var(--tc);box-shadow:0 0 6px var(--tc);width:0%;transition:width 1s ease}
+.mainnet-right{font-family:'Space Mono',monospace;font-size:7px;color:var(--tc);white-space:nowrap;opacity:0.8}
+
+/* ── Main layout ── */
+#layout{display:flex;min-height:calc(100vh - 46px - 22px);position:relative;z-index:10}
+
+/* ── Left nav ── */
+#leftnav{
+  width:170px;flex-shrink:0;
+  background:rgba(5,8,18,0.88);backdrop-filter:blur(12px);
+  border-right:1px solid var(--bd);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.nav-section-label{padding:14px 14px 6px;font-size:7px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);font-family:'Space Mono',monospace}
+.nav-item{
+  display:flex;align-items:center;gap:7px;
+  padding:7px 14px;cursor:pointer;
+  font-size:11px;color:var(--mu);
+  border-left:2px solid transparent;
+  transition:all 0.15s;
+  font-family:'Space Mono',monospace;
+  letter-spacing:0.5px;
+}
+.nav-item:hover{color:var(--tx);background:rgba(255,255,255,0.04)}
+.nav-item.active{color:var(--tc);border-left-color:var(--tc);background:#00e5b80a}
+.nav-dot{width:4px;height:4px;border-radius:50%;flex-shrink:0;background:currentColor}
+.nav-spacer{flex:1}
+.token-section{border-top:1px solid var(--bd);padding:10px 12px 8px}
+.token-title{font-size:6.5px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);font-family:'Space Mono',monospace;margin-bottom:7px}
+.token-row{display:flex;align-items:center;gap:5px;margin-bottom:5px}
+.token-name{font-size:8px;font-family:'Space Mono',monospace;width:40px;flex-shrink:0}
+.token-pct{font-size:7px;color:var(--mu);margin-left:auto;font-family:'Space Mono',monospace}
+.token-track{flex:1;height:2px;background:var(--bd);border-radius:2px;overflow:hidden}
+.token-fill{height:100%;border-radius:2px}
+.online-row{display:flex;align-items:center;gap:5px;margin-top:7px}
+.online-dot{width:5px;height:5px;border-radius:50%;background:#22c55e;animation:pulseDot 1.6s ease-in-out infinite}
+.online-text{font-size:7px;color:#22c55e;font-family:'Space Mono',monospace}
+
+/* ── Right content ── */
+#rightcol{flex:1;display:flex;flex-direction:column;overflow-y:auto;min-width:0}
+#agent-grid{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:6px;padding:10px;
+}
+.room{
+  position:relative;aspect-ratio:4/3;overflow:hidden;
+  border-radius:7px;border:1px solid var(--bd);
+  cursor:pointer;transition:border-color 0.2s;
+}
+.room:hover{border-color:rgba(255,255,255,0.12)}
+.room canvas{position:absolute;inset:0;width:100%;height:100%}
+.room-fog{
+  position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(to top,rgba(4,6,15,1) 0%,rgba(4,6,15,0.55) 20%,rgba(4,6,15,0.2) 45%,transparent 65%);
+}
+.room-top{
+  position:absolute;top:0;left:0;right:0;
+  display:flex;align-items:center;gap:6px;
+  padding:8px 10px;
+}
+.room-health-track{flex:1;height:2px;border-radius:2px;background:rgba(255,255,255,0.08);overflow:hidden}
+.room-health-fill{height:100%;border-radius:2px;transition:width 1s}
+.room-badge{
+  font-family:'Space Mono',monospace;font-size:7px;letter-spacing:1.5px;
+  padding:2px 6px;border-radius:3px;white-space:nowrap;
+}
+.room-bottom{position:absolute;bottom:0;left:0;right:0;padding:10px 12px 8px}
+.room-name{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;margin-bottom:2px}
+.room-role{font-size:9px;color:var(--mu);font-family:'Space Mono',monospace;margin-bottom:7px}
+.room-stats{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px}
+.stat-cell{
+  background:rgba(4,6,15,0.8);border:1px solid var(--bd);border-radius:5px;
+  padding:5px 7px;
+}
+.stat-val{font-family:'Space Mono',monospace;font-size:12px;font-weight:700}
+.stat-lbl{font-size:7.5px;color:var(--mu);margin-top:2px}
+.xp-row{display:flex;align-items:center;gap:6px}
+.xp-label{font-size:8px;font-family:'Space Mono',monospace;color:var(--mu);width:16px}
+.xp-track{flex:1;height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden}
+.xp-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--bc),var(--mc))}
+.xp-val{font-size:8px;font-family:'Space Mono',monospace;color:var(--bc);white-space:nowrap}
+
+/* ── Bottom panels ── */
+#bottom-panels{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 10px 10px}
+.panel{
+  background:rgba(6,9,18,0.6);border:1px solid var(--bd);border-radius:7px;
+  backdrop-filter:blur(8px);padding:10px 11px;
+}
+.panel-header{display:flex;align-items:center;gap:6px;margin-bottom:7px}
+.panel-title{font-family:'Space Mono',monospace;font-size:7px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mu)}
+.live-dot{width:5px;height:5px;border-radius:50%;background:#22c55e;animation:pulseDot 1.6s ease-in-out infinite}
+
+/* chat */
+.chat-list{max-height:82px;overflow:hidden;display:flex;flex-direction:column;gap:5px}
+.chat-entry{display:flex;align-items:flex-start;gap:6px;animation:fadeUp 0.3s ease}
+.chat-avatar{
+  width:20px;height:20px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:8px;font-weight:700;font-family:'Space Mono',monospace;
+}
+.chat-body{}
+.chat-name{font-size:8px;font-weight:700;font-family:'Space Mono',monospace;line-height:1.2}
+.chat-msg{font-size:9px;color:#7a94aa;line-height:1.5}
+
+/* log */
+.log-list{max-height:82px;overflow:hidden;font-family:'Space Mono',monospace;font-size:8px;line-height:1.9;display:flex;flex-direction:column}
+.log-entry{display:flex;align-items:baseline;gap:0;animation:fadeUp 0.3s ease;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log-ts{color:var(--mu);width:48px;flex-shrink:0;font-size:7.5px}
+.log-agent{width:50px;flex-shrink:0;font-weight:700}
+.log-msg{color:#647d8e;overflow:hidden;text-overflow:ellipsis}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Sidebar ── */
+#sidebar{
+  position:fixed;top:0;right:0;bottom:0;width:260px;z-index:200;
+  background:rgba(4,6,15,0.98);backdrop-filter:blur(20px);
+  border-left:1px solid var(--bd);
+  transform:translateX(100%);transition:transform 0.25s cubic-bezier(0.4,0,0.2,1);
+  display:flex;flex-direction:column;padding:16px;overflow-y:auto;
+}
+#sidebar.open{transform:translateX(0)}
+.sidebar-close{
+  position:absolute;top:12px;right:12px;background:none;border:none;
+  color:var(--mu);font-family:'Space Mono',monospace;font-size:12px;
+  cursor:pointer;padding:4px 6px;
+}
+.sidebar-close:hover{color:var(--tx)}
+.sidebar-name{font-family:'Space Mono',monospace;font-size:14px;font-weight:700;margin-bottom:4px;margin-top:4px}
+.sidebar-xp-row{display:flex;justify-content:space-between;align-items:baseline;margin:10px 0 4px}
+.sidebar-xp-row span{font-family:'Space Mono',monospace;font-size:9px}
+.sidebar-xp-track{height:4px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;margin-bottom:12px}
+.sidebar-xp-fill{height:100%;background:linear-gradient(90deg,var(--bc),var(--mc));border-radius:2px}
+.sidebar-stats{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:12px}
+.sidebar-stat{background:rgba(255,255,255,0.03);border:1px solid var(--bd);border-radius:5px;padding:8px 10px}
+.sidebar-stat .stat-val{font-size:13px}
+.sidebar-stat .stat-lbl{font-size:8px;color:var(--mu);margin-top:3px}
+.activity-label{font-size:7px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mu);font-family:'Space Mono',monospace;margin-bottom:7px}
+.activity-feed{
+  max-height:170px;overflow-y:auto;font-family:'Space Mono',monospace;font-size:8px;
+  line-height:1.9;color:var(--mu);
+  scrollbar-width:thin;scrollbar-color:var(--bd) transparent;
+}
+.sidebar-btns{display:flex;gap:6px;margin-top:12px}
+.sidebar-btn{
+  flex:1;padding:7px 4px;font-family:'Space Mono',monospace;font-size:8px;letter-spacing:1px;
+  text-transform:uppercase;border-radius:4px;cursor:pointer;border:1px solid;
+  background:transparent;transition:all 0.15s;
+}
+.sidebar-btn.primary{color:var(--tc);border-color:var(--tc)}
+.sidebar-btn.primary:hover{background:#00e5b812}
+.sidebar-btn.secondary{color:var(--mu);border-color:var(--bd)}
+.sidebar-btn.secondary:hover{color:var(--tx);border-color:rgba(255,255,255,0.15)}
+</style>
+</head>
+<body>
+
+<!-- Stars -->
+<div id="stars-layer"></div>
+<div class="scanline"></div>
+
+<!-- Top bar -->
+<div id="topbar">
+  <div class="topbar-logo">
+    <span class="dot dot-pulse" style="width:7px;height:7px;background:var(--tc)"></span>
+    <span class="logo-text">⬡ MISSION CTRL</span>
+    <span class="logo-sub">AI OPS</span>
+  </div>
+  <div class="topbar-stats">
+    <div class="tstat">
+      <div class="tstat-val" style="color:#22c55e">Online</div>
+      <div class="tstat-lbl">Status</div>
+    </div>
+    <div class="tstat">
+      <div class="tstat-val" id="stat-tasks" style="color:var(--sc)">10</div>
+      <div class="tstat-lbl">Workshop</div>
+    </div>
+    <div class="tstat">
+      <div class="tstat-val" id="stat-agents" style="color:var(--tc)">4</div>
+      <div class="tstat-lbl">Agents</div>
+    </div>
+    <div class="tstat">
+      <div class="tstat-val" id="stat-revenue" style="color:var(--tx)">$0</div>
+      <div class="tstat-lbl">Revenue</div>
+    </div>
+    <div class="tstat">
+      <div class="tstat-val" id="stat-tokens" style="color:var(--bc)">1,017k</div>
+      <div class="tstat-lbl">Tokens</div>
+    </div>
+  </div>
+  <div class="topbar-clock" id="clock">00:00:00</div>
+</div>
+
+<!-- Mainnet unlock bar -->
+<div id="mainnet-bar">
+  <div class="mainnet-label">MAINNET UNLOCK</div>
+  <div class="mainnet-track"><div class="mainnet-fill" id="mainnet-fill"></div></div>
+  <div class="mainnet-right" id="mainnet-label">0 / 20 net-positive trades</div>
+</div>
+
+<!-- Layout -->
+<div id="layout">
+
+  <!-- Left nav -->
+  <nav id="leftnav">
+    <div class="nav-section-label">NAVIGATE</div>
+    <div class="nav-item active" onclick="navTo(this,'dashboard')"><span class="nav-dot"></span>Dashboard</div>
+    <div class="nav-item" onclick="navTo(this,'roadmap')"><span class="nav-dot"></span>Roadmap</div>
+    <div class="nav-item" onclick="navTo(this,'agents')"><span class="nav-dot"></span>Agents</div>
+    <div class="nav-item" onclick="navTo(this,'capital')"><span class="nav-dot"></span>Capital Desk</div>
+    <div class="nav-item" onclick="navTo(this,'assignments')"><span class="nav-dot"></span>Assignments</div>
+    <div class="nav-item" onclick="navTo(this,'cron')"><span class="nav-dot"></span>Cron Jobs</div>
+    <div class="nav-item" onclick="navTo(this,'docs')"><span class="nav-dot"></span>Docs</div>
+    <div class="nav-item" onclick="navTo(this,'conventions')"><span class="nav-dot"></span>Conventions</div>
+    <div class="nav-spacer"></div>
+    <div class="token-section">
+      <div class="token-title">TOKEN USAGE</div>
+      <div class="token-row">
+        <span class="token-name" style="color:var(--tx)">Selam</span>
+        <div class="token-track"><div class="token-fill" style="width:100%;background:var(--tc)"></div></div>
+        <span class="token-pct">100%</span>
+      </div>
+      <div class="token-row">
+        <span class="token-name" style="color:var(--mc)">Merry</span>
+        <div class="token-track"><div class="token-fill" style="width:18%;background:var(--mc)"></div></div>
+        <span class="token-pct">18%</span>
+      </div>
+      <div class="token-row">
+        <span class="token-name" style="color:var(--bc)">Bulcha</span>
+        <div class="token-track"><div class="token-fill" style="width:13%;background:var(--bc)"></div></div>
+        <span class="token-pct">13%</span>
+      </div>
+      <div class="token-row">
+        <span class="token-name" style="color:var(--sc)">Tsega</span>
+        <div class="token-track"><div class="token-fill" style="width:2%;background:var(--sc)"></div></div>
+        <span class="token-pct">2%</span>
+      </div>
+      <div class="online-row">
+        <span class="online-dot"></span>
+        <span class="online-text" id="nav-clock">Online · 00:00:00</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Right column -->
+  <div id="rightcol">
+    <!-- Agent grid -->
+    <div id="agent-grid">
+
+      <!-- Room: Tsega -->
+      <div class="room" id="room-tsega" onclick="openSidebar('tsega')">
+        <canvas id="cv-tsega"></canvas>
+        <div class="room-fog"></div>
+        <div class="room-top">
+          <span class="dot dot-pulse" style="width:7px;height:7px;background:var(--tc)"></span>
+          <div class="room-health-track"><div class="room-health-fill" id="health-tsega" style="width:0%;background:var(--tc);box-shadow:0 0 6px var(--tc)"></div></div>
+          <span class="room-badge" style="color:var(--tc);background:rgba(0,229,184,0.08);border:1px solid rgba(0,229,184,0.16)">TESTNET</span>
+        </div>
+        <div class="room-bottom">
+          <div class="room-name" style="color:var(--tc)">TSEGA</div>
+          <div class="room-role">Trading Agent · Level 1</div>
+          <div class="room-stats">
+            <div class="stat-cell"><div class="stat-val" id="tsega-eq" style="color:var(--tc)">$82,707</div><div class="stat-lbl">Equity</div></div>
+            <div class="stat-cell"><div class="stat-val" id="tsega-pnl" style="color:var(--tc)">+$0.00</div><div class="stat-lbl">Today P&amp;L</div></div>
+            <div class="stat-cell"><div class="stat-val" id="tsega-wr" style="color:var(--tc)">0%</div><div class="stat-lbl">Win Rate</div></div>
+            <div class="stat-cell"><div class="stat-val" id="tsega-pos" style="color:var(--tc)">3/3</div><div class="stat-lbl">Positions</div></div>
+          </div>
+          <div class="xp-row">
+            <span class="xp-label">XP</span>
+            <div class="xp-track"><div class="xp-fill" style="width:0%"></div></div>
+            <span class="xp-val">0/20</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Room: Selam -->
+      <div class="room" id="room-selam" onclick="openSidebar('selam')">
+        <canvas id="cv-selam"></canvas>
+        <div class="room-fog"></div>
+        <div class="room-top">
+          <span class="dot dot-pulse" style="width:7px;height:7px;background:var(--sc)"></span>
+          <div class="room-health-track"><div class="room-health-fill" id="health-selam" style="width:100%;background:var(--sc);box-shadow:0 0 6px var(--sc)"></div></div>
+          <span class="room-badge" style="color:var(--sc);background:rgba(255,170,0,0.08);border:1px solid rgba(255,170,0,0.16)">PRIMARY</span>
+        </div>
+        <div class="room-bottom">
+          <div class="room-name" style="color:var(--sc)">SELAM</div>
+          <div class="room-role">Command · Level 9</div>
+          <div class="room-stats">
+            <div class="stat-cell"><div class="stat-val" style="color:var(--sc)">1,017k</div><div class="stat-lbl">Tokens</div></div>
+            <div class="stat-cell"><div class="stat-val" style="color:var(--sc)">100%</div><div class="stat-lbl">Usage</div></div>
+            <div class="stat-cell"><div class="stat-val" style="color:var(--sc)">6</div><div class="stat-lbl">Automations</div></div>
+            <div class="stat-cell"><div class="stat-val" style="color:var(--sc)">474</div><div class="stat-lbl">Produced</div></div>
+          </div>
+          <div class="xp-row">
+            <span class="xp-label">XP</span>
+            <div class="xp-track"><div class="xp-fill" style="width:85%"></div></div>
+            <span class="xp-val">85/100</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Room: Merry -->
+      <div class="room" id="room-merry" onclick="openSidebar('merry')">
+        <canvas id="cv-merry"></canvas>
+        <div class="room-fog"></div>
+        <div class="room-top">
+          <span class="dot dot-pulse" style="width:7px;height:7px;background:var(--mc)"></span>
+          <div class="room-health-track"><div class="room-health-fill" id="health-merry" style="width:18%;background:var(--mc);box-shadow:0 0 6px var(--mc)"></div></div>
+          <span class="room-badge" style="color:var(--mc);background:rgba(255,77,158,0.08);border:1px solid rgba(255,77,158,0.16)">OUTREACH</span>
+        </div>
+        <div class="room-bottom">
+          <div class="room-name" style="color:var(--mc)">MERRY</div>
+          <div class="room-role">Outreach Agent · Level 4</div>
+          <div class="room-stats">
+            <div class="stat-cell"><div class="stat-val" style="color:var(--mc)">51</div><div class="stat-lbl">Sent</div></div>
+            <div class="stat-cell"><div class="stat-val" style="color:var(--mc)">3</div><div class="stat-lbl">Ready</div></div>
+            <div class="stat-cell"><div class="stat-val" style="color:var(--mc)">36</div><div class="stat-lbl">A-Grade</div></div>
+            <div class="stat-cell"><div class="stat-val" style="color:var(--mc)">0</div><div class="stat-lbl">Replies</div></div>
+          </div>
+          <div class="xp-row">
+            <span class="xp-label">XP</span>
+            <div class="xp-track"><div class="xp-fill" style="width:51%"></div></div>
+            <span class="xp-val">51/100</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Room: Bulcha -->
+      <div class="room" id="room-bulcha" onclick="openSidebar('bulcha')">
+        <canvas id="cv-bulcha"></canvas>
+        <div class="room-fog"></div>
+        <div class="room-top">
+          <span class="dot dot-pulse" style="width:7px;height:7px;background:var(--bc)"></span>
+          <div class="room-health-track"><div class="room-health-fill" id="health-bulcha" style="width:30%;background:var(--bc);box-shadow:0 0 6px var(--bc)"></div></div>
+          <span class="room-badge" style="color:var(--bc);background:rgba(124,111,247,0.08);border:1px solid rgba(124,111,247,0.16)">WORKSHOP</span>
+        </div>
+        <div class="room-bottom">
+          <div class="room-name" style="color:var(--bc)">BULCHA</div>
+          <div class="room-role">Workshop · Level 3</div>
+          <div class="room-stats">
+            <div class="stat-cell"><div class="stat-val" style="color:var(--bc)">10</div><div class="stat-lbl">Tasks</div></div>
+            <div class="stat-cell"><div class="stat-val" style="color:var(--bc)">3</div><div class="stat-lbl">Done</div></div>
+            <div class="stat-cell"><div class="stat-val" style="color:var(--bc)">3</div><div class="stat-lbl">Active</div></div>
+            <div class="stat-cell"><div class="stat-val" style="color:var(--bc)">4</div><div class="stat-lbl">Todo</div></div>
+          </div>
+          <div class="xp-row">
+            <span class="xp-label">XP</span>
+            <div class="xp-track"><div class="xp-fill" style="width:30%"></div></div>
+            <span class="xp-val">30/100</span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /agent-grid -->
+
+    <!-- Bottom panels -->
+    <div id="bottom-panels">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="live-dot"></span>
+          <span class="panel-title">TEAM CHAT</span>
+        </div>
+        <div class="chat-list" id="chat-list"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="live-dot"></span>
+          <span class="panel-title">AGENT-ACTIVITY.LOG</span>
+        </div>
+        <div class="log-list" id="log-list"></div>
+      </div>
+    </div>
+
+  </div><!-- /rightcol -->
+</div><!-- /layout -->
+
+<!-- Sidebar -->
+<div id="sidebar">
+  <button class="sidebar-close" onclick="closeSidebar()">✕</button>
+  <div id="sb-name" class="sidebar-name"></div>
+  <div id="sb-badge" class="room-badge" style="display:inline-block;margin-bottom:8px"></div>
+  <div class="sidebar-xp-row">
+    <span id="sb-level" style="color:var(--mu)">Level 1</span>
+    <span id="sb-xpval" style="color:var(--bc)">0/20 XP</span>
+  </div>
+  <div class="sidebar-xp-track"><div id="sb-xp-fill" class="sidebar-xp-fill" style="width:0%"></div></div>
+  <div id="sb-stats" class="sidebar-stats"></div>
+  <div class="activity-label">ACTIVITY</div>
+  <div id="sb-feed" class="activity-feed"></div>
+  <div class="sidebar-btns">
+    <button class="sidebar-btn primary">Upgrade</button>
+    <button class="sidebar-btn primary">Manage</button>
+    <button class="sidebar-btn secondary">Info</button>
+  </div>
+</div>
+
+<script>
+// ── CSS vars shorthand ──────────────────────────────────────────────────────
+const TC='#00e5b8',SC='#ffaa00',MC='#ff4d9e',BC='#7c6ff7',BD='#152030';
+
+// ── Stars ──────────────────────────────────────────────────────────────────
+(function(){
+  const layer=document.getElementById('stars-layer');
+  const cols=['#ffffff','#a0c4ff','#c8b8ff'];
+  for(let i=0;i<120;i++){
+    const el=document.createElement('div');
+    el.className='star';
+    const sz=(Math.random()*2.2+0.4).toFixed(2);
+    const dur=(Math.random()*5+1.5).toFixed(2);
+    el.style.cssText=`
+      width:${sz}px;height:${sz}px;
+      left:${(Math.random()*100).toFixed(2)}%;
+      top:${(Math.random()*100).toFixed(2)}%;
+      background:${cols[Math.floor(Math.random()*cols.length)]};
+      --dur:${dur}s;
+      animation-delay:${(Math.random()*dur).toFixed(2)}s;
+      opacity:${(Math.random()*0.6+0.2).toFixed(2)};
+    `;
+    layer.appendChild(el);
+  }
+})();
+
+// ── Clock ──────────────────────────────────────────────────────────────────
+function updateClock(){
+  const now=new Date();
+  const t=now.toLocaleTimeString('en-US',{hour12:true});
+  document.getElementById('clock').textContent=t;
+  document.getElementById('nav-clock').textContent='Online · '+t;
+}
+setInterval(updateClock,1000);updateClock();
+
+// ── Nav ────────────────────────────────────────────────────────────────────
+function navTo(el,page){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  if(page==='capital') window.open('http://161.35.220.149:3001','_blank');
+}
+
+// ── Canvas setup ───────────────────────────────────────────────────────────
+const canvases={};
+['tsega','selam','merry','bulcha'].forEach(id=>{
+  const cv=document.getElementById('cv-'+id);
+  const room=document.getElementById('room-'+id);
+  function resize(){cv.width=room.offsetWidth;cv.height=room.offsetHeight}
+  resize();
+  new ResizeObserver(resize).observe(room);
+  canvases[id]={cv,ctx:cv.getContext('2d')};
+});
+
+// ── Tick / animation loop ───────────────────────────────────────────────────
+let tick=0;
+function hexA(hex,a){
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+// ── Draw Tsega (radar) ──────────────────────────────────────────────────────
+const tsegaBlips=[
+  {angle:0.8,r:0.44,phase:0},{angle:2.1,r:0.28,phase:1.2},
+  {angle:3.7,r:0.38,phase:2.1},{angle:5.1,r:0.22,phase:0.7}
+];
+function drawTsega(t){
+  const {cv,ctx}=canvases.tsega;
+  const W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const CX=W*0.40,CY=H*0.44,maxR=Math.min(W,H)*0.34;
+
+  // Grid lines
+  ctx.strokeStyle=hexA(TC,0.05);ctx.lineWidth=0.5;
+  for(let x=CX%22;x<W;x+=22){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+  for(let y=CY%22;y<H;y+=22){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+
+  // Concentric circles
+  [1,0.7,0.45,0.22].forEach((f,i)=>{
+    ctx.beginPath();ctx.arc(CX,CY,maxR*f,0,Math.PI*2);
+    ctx.strokeStyle=i===0?hexA(TC,0.22):hexA(TC,0.09);
+    ctx.lineWidth=i===0?1:0.4;ctx.stroke();
+  });
+
+  // Sweep arm + trail
+  const sweepAngle=(t*0.018)%(Math.PI*2);
+  const TRAIL=22;
+  for(let i=0;i<TRAIL;i++){
+    const a=sweepAngle-(i/TRAIL)*Math.PI*0.55;
+    const opa=((TRAIL-i)/TRAIL)*0.22;
+    ctx.beginPath();ctx.moveTo(CX,CY);
+    ctx.lineTo(CX+Math.cos(a)*maxR,CY+Math.sin(a)*maxR);
+    ctx.strokeStyle=hexA(TC,opa);ctx.lineWidth=i===0?1.5:0.5;ctx.stroke();
+  }
+  // Arm tip
+  ctx.beginPath();ctx.moveTo(CX,CY);
+  ctx.lineTo(CX+Math.cos(sweepAngle)*maxR,CY+Math.sin(sweepAngle)*maxR);
+  ctx.strokeStyle=hexA(TC,0.88);ctx.lineWidth=1.5;ctx.stroke();
+
+  // Blips
+  tsegaBlips.forEach(b=>{
+    const bx=CX+Math.cos(b.angle)*maxR*b.r,by=CY+Math.sin(b.angle)*maxR*b.r;
+    const pulse=0.5+0.5*Math.sin(t*0.04+b.phase);
+    ctx.beginPath();ctx.arc(bx,by,3,0,Math.PI*2);
+    ctx.fillStyle=hexA(TC,0.7+pulse*0.3);ctx.fill();
+    ctx.beginPath();ctx.arc(bx,by,6,0,Math.PI*2);
+    ctx.strokeStyle=hexA(TC,0.15+pulse*0.12);ctx.lineWidth=1;ctx.stroke();
+  });
+
+  // Data bars on right side
+  const barX=W*0.72,barY0=H*0.18,barH=5,barW=W*0.24;
+  for(let i=0;i<4;i++){
+    const fill=0.35+0.55*Math.abs(Math.sin(t*0.007+i*1.1));
+    ctx.fillStyle=hexA(TC,0.08);ctx.fillRect(barX,barY0+i*14,barW,barH);
+    ctx.fillStyle=hexA(TC,0.5+fill*0.3);ctx.fillRect(barX,barY0+i*14,barW*fill,barH);
+  }
+
+  // Robot sprite on radar center
+  const rx=CX,ry=CY;
+  const walkY=Math.sin(t*0.11)*2;
+  ctx.fillStyle=hexA(TC,0.25);
+  ctx.fillRect(rx-7,ry-12+walkY,14,10);// body
+  ctx.fillRect(rx-5,ry-22+walkY,10,9); // head
+  // eyes
+  ctx.fillStyle=hexA(TC,0.9);
+  ctx.fillRect(rx-3,ry-20+walkY,2,2);
+  ctx.fillRect(rx+1,ry-20+walkY,2,2);
+  // legs
+  const legA=Math.sin(t*0.11)*4;
+  ctx.fillStyle=hexA(TC,0.2);
+  ctx.fillRect(rx-5,ry-2+walkY,4,6+legA);
+  ctx.fillRect(rx+1,ry-2+walkY,4,6-legA);
+}
+
+// ── Draw Selam (orbital) ────────────────────────────────────────────────────
+function drawSelam(t){
+  const {cv,ctx}=canvases.selam;
+  const W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const CX=W*0.50,CY=H*0.44;
+
+  // Radial glow
+  const pulse=0.35+0.25*Math.sin(t*0.022);
+  const grd=ctx.createRadialGradient(CX,CY,0,CX,CY,60);
+  grd.addColorStop(0,hexA(SC,pulse));grd.addColorStop(1,hexA(SC,0));
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(CX,CY,60,0,Math.PI*2);ctx.fill();
+
+  // Central orb
+  ctx.beginPath();ctx.arc(CX,CY,11,0,Math.PI*2);ctx.fillStyle=SC;ctx.fill();
+  ctx.beginPath();ctx.arc(CX,CY,5,0,Math.PI*2);ctx.fillStyle='#030508';ctx.fill();
+
+  // 3 elliptical orbits
+  const orbits=[
+    {rx:W*0.20,ry:W*0.20*0.26,speed:0.016,sz:5,opa:0.88,lw:1.5},
+    {rx:W*0.31,ry:W*0.31*0.26,speed:0.011,sz:3.5,opa:0.44,lw:0.6},
+    {rx:W*0.42,ry:W*0.42*0.26,speed:0.007,sz:2.5,opa:0.22,lw:0.6},
+  ];
+  orbits.forEach(o=>{
+    // Orbit ellipse
+    ctx.save();ctx.translate(CX,CY);
+    ctx.beginPath();ctx.ellipse(0,0,o.rx,o.ry,0,0,Math.PI*2);
+    ctx.strokeStyle=hexA(SC,o.opa);ctx.lineWidth=o.lw;ctx.stroke();
+    // Dot on orbit
+    const angle=t*o.speed;
+    const dx=Math.cos(angle)*o.rx,dy=Math.sin(angle)*o.ry;
+    ctx.beginPath();ctx.arc(dx,dy,o.sz,0,Math.PI*2);ctx.fillStyle=hexA(SC,0.9);ctx.fill();
+    // Data packet (square) traveling from center to dot
+    const px=dx*0.5,py=dy*0.5;
+    ctx.fillStyle=hexA(SC,0.35);ctx.fillRect(px-2.5,py-2.5,5,5);
+    ctx.restore();
+  });
+
+  // Corner nodes with pulsing lines
+  const corners=[[0.06,0.1],[0.94,0.1],[0.06,0.78],[0.94,0.78]];
+  corners.forEach(([fx,fy],i)=>{
+    const nx=W*fx,ny=H*fy;
+    const opa=0.08+0.06*Math.sin(t*0.03+i*1.3);
+    ctx.beginPath();ctx.moveTo(CX,CY);ctx.lineTo(nx,ny);
+    ctx.strokeStyle=hexA(SC,opa);ctx.lineWidth=0.5;ctx.stroke();
+    const pulse2=0.2+0.18*Math.sin(t*0.025+i);
+    ctx.beginPath();ctx.arc(nx,ny,3,0,Math.PI*2);
+    ctx.fillStyle=hexA(SC,pulse2);ctx.fill();
+  });
+}
+
+// ── Draw Merry (packets) ────────────────────────────────────────────────────
+function drawMerry(t){
+  const {cv,ctx}=canvases.merry;
+  const W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+
+  // Dashed path lines
+  ctx.setLineDash([2,7]);ctx.lineWidth=0.5;
+  for(let i=0;i<9;i++){
+    const py=H*(0.10+i*0.087);
+    ctx.beginPath();ctx.moveTo(0,py);ctx.lineTo(W,py);
+    ctx.strokeStyle=hexA(MC,0.12);ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Envelopes on paths
+  for(let i=0;i<9;i++){
+    const py=H*(0.10+i*0.087);
+    const x=((t*0.007+i*0.112)%1)*W;
+    const opa=Math.sin(x/W*Math.PI)*0.85+0.1;
+    ctx.save();ctx.translate(x,py);ctx.rotate(0.12);
+    ctx.fillStyle=hexA(MC,opa*0.7);ctx.strokeStyle=hexA(MC,opa*0.9);
+    ctx.lineWidth=0.7;
+    ctx.beginPath();ctx.rect(-5,-3.5,10,7);ctx.fill();ctx.stroke();
+    // V flap
+    ctx.beginPath();ctx.moveTo(-5,-3.5);ctx.lineTo(0,0.5);ctx.lineTo(5,-3.5);
+    ctx.strokeStyle=hexA(MC,opa*0.6);ctx.lineWidth=0.5;ctx.stroke();
+    ctx.restore();
+  }
+
+  // Pipeline bars in lower third
+  const bars=[
+    {label:'51 sent',fill:0.86,opa:1.0,y:H*0.66},
+    {label:'36 A-grade',fill:0.56,opa:0.67,y:H*0.76},
+    {label:'3 ready',fill:0.06,opa:0.40,y:H*0.86},
+  ];
+  const bX=W*0.06,bW=W*0.88;
+  bars.forEach(b=>{
+    ctx.fillStyle=hexA(MC,0.06);ctx.fillRect(bX,b.y,bW,5);
+    ctx.fillStyle=hexA(MC,b.opa);ctx.fillRect(bX,b.y,bW*b.fill,5);
+    ctx.fillStyle=hexA(MC,0.5);ctx.font='8px Space Mono,monospace';
+    ctx.fillText(b.label,bX,b.y-4);
+  });
+}
+
+// ── Draw Bulcha (factory) ───────────────────────────────────────────────────
+function drawBulcha(t){
+  const {cv,ctx}=canvases.bulcha;
+  const W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+
+  // Progress bars
+  const pbars=[
+    {label:'3 done',fill:0.30,col:'#22c55e',y:H*0.15},
+    {label:'3 active',fill:0.30,col:BC,y:H*0.27},
+    {label:'4 todo',fill:0.40,col:'#1e3347',y:H*0.39},
+  ];
+  const pbX=W*0.06,pbW=W*0.88;
+  pbars.forEach(b=>{
+    ctx.fillStyle=hexA('#152030',0.8);ctx.fillRect(pbX,b.y,pbW,4);
+    ctx.fillStyle=b.col;ctx.fillRect(pbX,b.y,pbW*b.fill,4);
+    ctx.fillStyle=b.col;ctx.font='8px Space Mono,monospace';
+    ctx.fillText(b.label,pbX,b.y-4);
+  });
+
+  // Conveyor belt
+  const bY=H*0.48,bH=H*0.20;
+  ctx.fillStyle='#060b14';ctx.fillRect(0,bY,W,bH);
+  ctx.strokeStyle=hexA(BC,0.22);ctx.lineWidth=0.6;ctx.strokeRect(0,bY,W,bH);
+  // Belt lines
+  const scrollX=t%32;
+  ctx.strokeStyle=hexA(BC,0.10);ctx.lineWidth=0.4;
+  for(let x=scrollX-32;x<W+32;x+=32){
+    ctx.beginPath();ctx.moveTo(x,bY);ctx.lineTo(x,bY+bH);ctx.stroke();
+  }
+
+  // Items on conveyor
+  const itemW=26,itemH=bH-14;
+  const items=[
+    {col:'#7c6ff7',opa:0.93,done:true,offset:0},
+    {col:'#7c6ff7',opa:0.53,done:true,offset:W*0.38},
+    {col:'#ff4d9e',opa:0.53,done:false,offset:W*0.68},
+  ];
+  items.forEach(item=>{
+    const ix=((W-(t*0.65-item.offset)%W)+W)%W;
+    const iy=bY+7;
+    ctx.fillStyle=hexA(item.col,item.opa);
+    ctx.fillRect(ix-itemW/2,iy,itemW,itemH);
+    ctx.strokeStyle=hexA(item.col,0.3);ctx.lineWidth=0.5;
+    ctx.strokeRect(ix-itemW/2,iy,itemW,itemH);
+    if(item.done){
+      ctx.strokeStyle='#22c55e';ctx.lineWidth=1.2;
+      ctx.beginPath();
+      ctx.moveTo(ix-5,iy+itemH*0.5);
+      ctx.lineTo(ix-1,iy+itemH*0.72);
+      ctx.lineTo(ix+6,iy+itemH*0.28);
+      ctx.stroke();
+    }
+  });
+}
+
+// ── Main rAF loop ───────────────────────────────────────────────────────────
+function animLoop(){
+  tick++;
+  drawTsega(tick);drawSelam(tick);drawMerry(tick);drawBulcha(tick);
+  requestAnimationFrame(animLoop);
+}
+animLoop();
+
+// ── Sidebar ─────────────────────────────────────────────────────────────────
+const AGENTS={
+  tsega:{name:'TSEGA',color:TC,badge:'TESTNET',level:1,xp:0,xpMax:20,
+    stats:[{v:'$82,707',l:'Equity'},{v:'+$0.00',l:"Today P&L"},{v:'0%',l:'Win Rate'},{v:'3/3',l:'Positions'}],
+    feed:['[idle] Waiting for next scan cycle','[scan] BTCUSDT RSI:76.5 — SKIP overbought','[scan] ETHUSDT funding=-0.002% — ELIGIBLE','[trade] DOT long $1,417 @ $1.31','[hold] 3 positions open · monitoring']},
+  selam:{name:'SELAM',color:SC,badge:'PRIMARY',level:9,xp:85,xpMax:100,
+    stats:[{v:'1,017k',l:'Tokens'},{v:'100%',l:'Usage'},{v:'6',l:'Automations'},{v:'474',l:'Produced'}],
+    feed:['[session] Active · 100% token usage','[exec] Ran 6 automations today','[build] Produced 474 outputs total','[status] Mission Control · All systems nominal','[plan] Roadmap Q2 review in progress']},
+  merry:{name:'MERRY',color:MC,badge:'OUTREACH',level:4,xp:51,xpMax:100,
+    stats:[{v:'51',l:'Sent'},{v:'3',l:'Ready'},{v:'36',l:'A-Grade'},{v:'0',l:'Replies'}],
+    feed:['[queue] 3 leads ready for outreach','[sent] 51 emails delivered','[grade] 36 A-grade prospects identified','[wait] 0 replies received so far','[pipeline] 36/51 high quality (70.6%)']},
+  bulcha:{name:'BULCHA',color:BC,badge:'WORKSHOP',level:3,xp:30,xpMax:100,
+    stats:[{v:'10',l:'Tasks'},{v:'3',l:'Done'},{v:'3',l:'Active'},{v:'4',l:'Todo'}],
+    feed:['[workshop] 10 tasks in queue','[done] 3 tasks completed','[active] 3 tasks in progress','[todo] 4 tasks pending','[build] SafeAgent components active']},
+};
+
+function openSidebar(id){
+  const a=AGENTS[id];
+  document.getElementById('sb-name').textContent=a.name;
+  document.getElementById('sb-name').style.color=a.color;
+  const badge=document.getElementById('sb-badge');
+  badge.textContent=a.badge;badge.style.color=a.color;
+  badge.style.background=a.color+'14';badge.style.border='1px solid '+a.color+'2a';
+  document.getElementById('sb-level').textContent='Level '+a.level;
+  document.getElementById('sb-xpval').textContent=a.xp+'/'+a.xpMax+' XP';
+  document.getElementById('sb-xp-fill').style.width=(a.xp/a.xpMax*100)+'%';
+  const stats=document.getElementById('sb-stats');
+  stats.innerHTML=a.stats.map(s=>`<div class="sidebar-stat"><div class="stat-val" style="color:${a.color}">${s.v}</div><div class="stat-lbl">${s.l}</div></div>`).join('');
+  document.getElementById('sb-feed').innerHTML=a.feed.map(f=>`<div>${f}</div>`).join('');
+  document.getElementById('sidebar').classList.add('open');
+}
+function closeSidebar(){document.getElementById('sidebar').classList.remove('open')}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSidebar()});
+
+// ── Chat & log panels ────────────────────────────────────────────────────────
+// Non-Tsega agents rotate slowly (no SSE feed for them)
+const otherAgentChat=[
+  {agent:'SELAM',color:SC,bg:SC+'1a',msg:'All systems nominal. 6 automations active.'},
+  {agent:'MERRY',color:MC,bg:MC+'1a',msg:'3 leads ready. Pipeline at 36 A-grade prospects.'},
+  {agent:'BULCHA',color:BC,bg:BC+'1a',msg:'Workshop: 3 active, 4 queued. On track.'},
+  {agent:'SELAM',color:SC,bg:SC+'1a',msg:'Revenue pipeline review complete. $0 closed.'},
+  {agent:'MERRY',color:MC,bg:MC+'1a',msg:'Outreach batch queued. Awaiting send window.'},
+  {agent:'BULCHA',color:BC,bg:BC+'1a',msg:'SafeAgent build: component 3/7 complete.'},
+];
+let otherAgentIdx=0;
+
+function addChatEntry(m){
+  const list=document.getElementById('chat-list');
+  const el=document.createElement('div');el.className='chat-entry';
+  el.innerHTML=`<div class="chat-avatar" style="background:${m.bg};color:${m.color}">${m.agent[0]}</div><div class="chat-body"><div class="chat-name" style="color:${m.color}">${m.agent}</div><div class="chat-msg">${m.msg}</div></div>`;
+  list.insertBefore(el,list.firstChild);
+  while(list.children.length>4)list.removeChild(list.lastChild);
+}
+function addLogEntry(m){
+  const list=document.getElementById('log-list');
+  const el=document.createElement('div');el.className='log-entry';
+  el.innerHTML=`<span class="log-ts">${m.ts}</span><span class="log-agent" style="color:${m.color}">${m.agent}</span><span class="log-msg"> ${m.msg}</span>`;
+  list.insertBefore(el,list.firstChild);
+  while(list.children.length>5)list.removeChild(list.lastChild);
+}
+function feedEntryToLog(f){
+  const ts=new Date(f.ts).toTimeString().slice(0,5);
+  return {ts,agent:'TSEGA',color:TC,msg:(f.message||'').slice(0,60)};
+}
+function feedEntryToChat(f){
+  return {agent:'TSEGA',color:TC,bg:TC+'1a',msg:(f.message||'').slice(0,80)};
+}
+
+// Seed placeholder until SSE connects
+addChatEntry({agent:'SYS',color:'#2d4558',bg:'#2d455818',msg:'Connecting to live feed…'});
+addLogEntry({ts:'--:--',agent:'SYS',color:'#2d4558',msg:'waiting for VPS connection'});
+
+// Rotate other-agent chat every 14s
+setInterval(()=>{
+  addChatEntry(otherAgentChat[otherAgentIdx%otherAgentChat.length]);
+  otherAgentIdx++;
+},14000);
+
+// ── SSE / live data ──────────────────────────────────────────────────────────
+function updateTsegaStats(m){
+  if(m.winRate!=null){
+    document.getElementById('tsega-wr').textContent=m.winRate+'%';
+    document.getElementById('health-tsega').style.width=m.winRate+'%';
+  }
+  if(m.totalPnl!=null){
+    const v=m.totalPnl;
+    document.getElementById('tsega-pnl').textContent=(v>=0?'+$':'−$')+Math.abs(v).toFixed(2);
+  }
+  if(m.openPositions!=null)
+    document.getElementById('tsega-pos').textContent=m.openPositions+'/5';
+  if(m.equity!=null)
+    document.getElementById('tsega-eq').textContent='$'+Math.round(m.equity).toLocaleString();
+  if(m.todayPnl!=null){
+    const v=m.todayPnl;
+    document.getElementById('tsega-pnl').textContent=(v>=0?'+$':'−$')+Math.abs(v).toFixed(2);
+  }
+}
+function updateMainnet(trades){
+  const pct=Math.min(100,(trades/20)*100);
+  document.getElementById('mainnet-fill').style.width=pct+'%';
+  document.getElementById('mainnet-label').textContent=trades+' / 20 net-positive trades';
+}
+
+// Try to connect to VPS server.js SSE
+// Uses relative URL if same origin, otherwise absolute IP
+const SSE_URL=window.location.hostname==='161.35.220.149'?'/events':'http://161.35.220.149:3001/events';
+let sseConnected=false;
+try{
+  const es=new EventSource(SSE_URL);
+  es.addEventListener('init',e=>{
+    sseConnected=true;
+    const d=JSON.parse(e.data);
+    if(d.metrics)updateTsegaStats(d.metrics);
+    updateMainnet((d.trades||[]).filter(t=>t.pnl>0).length);
+    const feedItems=(d.feed||[]).slice(-8);
+    if(feedItems.length){
+      // Replace placeholder with real data
+      document.getElementById('log-list').innerHTML='';
+      document.getElementById('chat-list').innerHTML='';
+      feedItems.forEach(f=>addLogEntry(feedEntryToLog(f)));
+      feedItems.slice(-3).forEach(f=>addChatEntry(feedEntryToChat(f)));
+    }
+  });
+  es.addEventListener('metrics',e=>{updateTsegaStats(JSON.parse(e.data))});
+  es.addEventListener('feed',e=>{
+    const f=JSON.parse(e.data);
+    addLogEntry(feedEntryToLog(f));
+    // Only surface notable messages to chat (BUY/SELL/cycle/position)
+    const msg=(f.message||'');
+    if(/BUY|SELL|cycle|position|ELIGIBLE|SKIP|stop/i.test(msg))
+      addChatEntry(feedEntryToChat(f));
+  });
+  es.addEventListener('trade',e=>{
+    const state_r=JSON.parse(e.data);
+    // Re-fetch metrics to get updated win count
+    fetch(SSE_URL.replace('/events','/state/metrics')).then(r=>r.json())
+      .then(m=>updateTsegaStats(m)).catch(()=>{});
+  });
+  es.addEventListener('status',e=>{
+    const d=JSON.parse(e.data);
+    if(d.status==='running')addLogEntry({ts:new Date().toTimeString().slice(0,5),agent:'TSEGA',color:TC,msg:'cycle started — scanning markets'});
+  });
+  es.onerror=()=>{if(!sseConnected){/* stay on defaults */}};
+}catch(e){}
+</script>
+</body>
+</html>

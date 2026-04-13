@@ -21,5 +21,6 @@ export const reporter = {
   trade:    (trade)                 => post("/agent/trade",   trade),
   position: (pos)                  => post("/agent/position", pos),
   equity:   (value)                => post("/agent/equity",   { value }),
+  holdings: (holdings)             => post("/agent/holdings", { holdings }),
   params:   (params)               => post("/agent/params",   params),
 };
