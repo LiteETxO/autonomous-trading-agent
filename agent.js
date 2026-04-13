@@ -97,7 +97,7 @@ try {
 } catch {}
 
 const PROVIDER = process.env.MOONSHOT_API_KEY ? "moonshot" : "anthropic";
-const MODEL    = PROVIDER === "moonshot" ? "moonshot-v1-32k" : "claude-opus-4-6";
+const MODEL    = PROVIDER === "moonshot" ? "moonshot-v1-128k" : "claude-opus-4-6";
 
 const client = PROVIDER === "moonshot"
   ? new OpenAI({ apiKey: process.env.MOONSHOT_API_KEY, baseURL: "https://api.moonshot.ai/v1" })
